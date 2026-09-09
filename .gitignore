@@ -1,0 +1,36 @@
+# macOS
+.DS_Store
+
+# Editors and local agent settings
+.claude/
+.vscode/
+
+# Xcode user data and generated builds
+DerivedData/
+xcuserdata/
+*.xcuserstate
+ios/build/
+ios/build-*/
+ios/archive/
+*.xcarchive/
+*.ipa
+*.dSYM/
+
+# Swift Package Manager local state
+.build/
+.swiftpm/
+
+# JavaScript dependencies and logs
+node_modules/
+*.log
+
+# Signing credentials and local environment files
+*.p8
+*.p12
+*.cer
+*.mobileprovision
+*.key
+*.pem
+.env
+.env.*
+!.env.example

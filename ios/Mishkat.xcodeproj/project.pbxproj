@@ -1,0 +1,541 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		00000000000000000000001E /* MishkatApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000001 /* MishkatApp.swift */; };
+		00000000000000000000001F /* WebScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000002 /* WebScreen.swift */; };
+		000000000000000000000020 /* NativeBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000003 /* NativeBridge.swift */; };
+		000000000000000000000021 /* AppSchemeHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000004 /* AppSchemeHandler.swift */; };
+		000000000000000000000022 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000005 /* Assets.xcassets */; };
+		000000000000000000000023 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000006 /* PrivacyInfo.xcprivacy */; };
+		000000000000000000000024 /* adhan1.caf in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000007 /* adhan1.caf */; };
+		000000000000000000000025 /* adhan2.caf in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000008 /* adhan2.caf */; };
+		000000000000000000000026 /* adhan3.caf in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000009 /* adhan3.caf */; };
+		000000000000000000000027 /* adhan4.caf in Resources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000000A /* adhan4.caf */; };
+		000000000000000000000028 /* adhan5.caf in Resources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000000B /* adhan5.caf */; };
+		000000000000000000000029 /* adhan6.caf in Resources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000000C /* adhan6.caf */; };
+
+		000000000000000000000114 /* PrayerTimes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000101 /* PrayerTimes.swift */; };
+		000000000000000000000115 /* PrayerTimes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000101 /* PrayerTimes.swift */; };
+		000000000000000000000116 /* SharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000102 /* SharedStore.swift */; };
+		000000000000000000000117 /* SharedStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000102 /* SharedStore.swift */; };
+		000000000000000000000118 /* MishkatWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000103 /* MishkatWidget.swift */; };
+		000000000000000000000119 /* MishkatWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 000000000000000000000107 /* MishkatWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		00000000000000000000D002 /* DuaWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000D001 /* DuaWidget.swift */; };
+		00000000000000000000F001 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = 00000000000000000000F003 /* FirebaseMessaging */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXTargetDependency section */
+		000000000000000000000111 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 000000000000000000000109 /* MishkatWidget */;
+			targetProxy = 000000000000000000000112 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXContainerItemProxy section */
+		000000000000000000000112 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 000000000000000000000013 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 000000000000000000000109;
+			remoteInfo = MishkatWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		000000000000000000000110 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+000000000000000000000119 /* MishkatWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		000000000000000000000001 /* MishkatApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MishkatApp.swift; sourceTree = "<group>"; };
+		000000000000000000000002 /* WebScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebScreen.swift; sourceTree = "<group>"; };
+		000000000000000000000003 /* NativeBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeBridge.swift; sourceTree = "<group>"; };
+		000000000000000000000004 /* AppSchemeHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSchemeHandler.swift; sourceTree = "<group>"; };
+		000000000000000000000005 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = Assets.xcassets; sourceTree = "<group>"; };
+		000000000000000000000006 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		000000000000000000000007 /* adhan1.caf */ = {isa = PBXFileReference; lastKnownFileType = audio.caf; name = adhan1.caf; path = Sounds/adhan1.caf; sourceTree = "<group>"; };
+		000000000000000000000008 /* adhan2.caf */ = {isa = PBXFileReference; lastKnownFileType = audio.caf; name = adhan2.caf; path = Sounds/adhan2.caf; sourceTree = "<group>"; };
+		000000000000000000000009 /* adhan3.caf */ = {isa = PBXFileReference; lastKnownFileType = audio.caf; name = adhan3.caf; path = Sounds/adhan3.caf; sourceTree = "<group>"; };
+		00000000000000000000000A /* adhan4.caf */ = {isa = PBXFileReference; lastKnownFileType = audio.caf; name = adhan4.caf; path = Sounds/adhan4.caf; sourceTree = "<group>"; };
+		00000000000000000000000B /* adhan5.caf */ = {isa = PBXFileReference; lastKnownFileType = audio.caf; name = adhan5.caf; path = Sounds/adhan5.caf; sourceTree = "<group>"; };
+		00000000000000000000000C /* adhan6.caf */ = {isa = PBXFileReference; lastKnownFileType = audio.caf; name = adhan6.caf; path = Sounds/adhan6.caf; sourceTree = "<group>"; };
+		00000000000000000000000D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		00000000000000000000000E /* Mishkat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Mishkat.app; sourceTree = BUILT_PRODUCTS_DIR; };
+
+		000000000000000000000101 /* PrayerTimes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PrayerTimes.swift; path = Shared/PrayerTimes.swift; sourceTree = "<group>"; };
+		000000000000000000000102 /* SharedStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SharedStore.swift; path = Shared/SharedStore.swift; sourceTree = "<group>"; };
+		000000000000000000000103 /* MishkatWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MishkatWidget.swift; sourceTree = "<group>"; };
+		000000000000000000000104 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		000000000000000000000105 /* MishkatWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MishkatWidget.entitlements; sourceTree = "<group>"; };
+		000000000000000000000106 /* Mishkat.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Mishkat.entitlements; sourceTree = "<group>"; };
+		000000000000000000000107 /* MishkatWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MishkatWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		00000000000000000000D001 /* DuaWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuaWidget.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		000000000000000000000014 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				00000000000000000000F001 /* FirebaseMessaging in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+
+		00000000000000000000010B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		00000000000000000000000F = {
+			isa = PBXGroup;
+			children = (
+000000000000000000000113 /* Shared */,
+000000000000000000000108 /* MishkatWidget */,
+000000000000000000000010 /* Mishkat */,
+000000000000000000000011 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		000000000000000000000010 /* Mishkat */ = {
+			isa = PBXGroup;
+			children = (
+000000000000000000000106 /* Mishkat.entitlements */,
+000000000000000000000001 /* MishkatApp.swift */,
+000000000000000000000002 /* WebScreen.swift */,
+000000000000000000000003 /* NativeBridge.swift */,
+000000000000000000000004 /* AppSchemeHandler.swift */,
+000000000000000000000005 /* Assets.xcassets */,
+000000000000000000000006 /* PrivacyInfo.xcprivacy */,
+000000000000000000000007 /* adhan1.caf */,
+000000000000000000000008 /* adhan2.caf */,
+000000000000000000000009 /* adhan3.caf */,
+00000000000000000000000A /* adhan4.caf */,
+00000000000000000000000B /* adhan5.caf */,
+00000000000000000000000C /* adhan6.caf */,
+00000000000000000000000D /* Info.plist */,
+			);
+			path = Mishkat;
+			sourceTree = "<group>";
+		};
+		000000000000000000000011 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+000000000000000000000107 /* MishkatWidget.appex */,
+00000000000000000000000E /* Mishkat.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+
+		000000000000000000000113 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+000000000000000000000101 /* PrayerTimes.swift */,
+000000000000000000000102 /* SharedStore.swift */,
+			);
+			name = Shared;
+			sourceTree = "<group>";
+		};
+		000000000000000000000108 /* MishkatWidget */ = {
+			isa = PBXGroup;
+			children = (
+000000000000000000000103 /* MishkatWidget.swift */,
+				00000000000000000000D001 /* DuaWidget.swift */,
+000000000000000000000104 /* Info.plist */,
+000000000000000000000105 /* MishkatWidget.entitlements */,
+			);
+			path = MishkatWidget;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		000000000000000000000012 /* Mishkat */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 000000000000000000000019 /* Build configuration list for PBXNativeTarget "Mishkat" */;
+			buildPhases = (
+000000000000000000000016 /* Sources */,
+000000000000000000000014 /* Frameworks */,
+000000000000000000000015 /* Resources */,
+000000000000000000000017 /* Embed web app */,
+				000000000000000000000110 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				000000000000000000000111 /* PBXTargetDependency */,
+			);
+			name = Mishkat;
+			packageProductDependencies = (
+				00000000000000000000F003 /* FirebaseMessaging */,
+			);
+			productName = Mishkat;
+			productReference = 00000000000000000000000E /* Mishkat.app */;
+			productType = "com.apple.product-type.application";
+		};
+
+		000000000000000000000109 /* MishkatWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 00000000000000000000010D /* Build configuration list for PBXNativeTarget "MishkatWidget" */;
+			buildPhases = (
+00000000000000000000010A /* Sources */,
+00000000000000000000010B /* Frameworks */,
+00000000000000000000010C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MishkatWidget;
+			productName = MishkatWidget;
+			productReference = 000000000000000000000107 /* MishkatWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		000000000000000000000013 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+BuildIndependentTargetsInParallel = 1;
+LastSwiftUpdateCheck = 1600;
+LastUpgradeCheck = 1600;
+TargetAttributes = {
+	000000000000000000000012 = {
+		CreatedOnToolsVersion = 16.0;
+		SystemCapabilities = {
+			com.apple.Keychain = {
+				enabled = 1;
+			};
+			com.apple.Push = {
+				enabled = 1;
+			};
+		};
+	};
+	000000000000000000000109 = {
+		CreatedOnToolsVersion = 16.0;
+		SystemCapabilities = {
+			com.apple.Keychain = {
+				enabled = 1;
+			};
+		};
+	};
+};
+			};
+			buildConfigurationList = 000000000000000000000018 /* Build configuration list for PBXProject "Mishkat" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = ar;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+ar,
+en,
+Base,
+			);
+			mainGroup = 00000000000000000000000F;
+			packageReferences = (
+				00000000000000000000F002 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
+			productRefGroup = 000000000000000000000011 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+000000000000000000000012 /* Mishkat */,
+				000000000000000000000109 /* MishkatWidget */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		000000000000000000000015 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+000000000000000000000022 /* Assets.xcassets in Resources */,
+000000000000000000000023 /* PrivacyInfo.xcprivacy in Resources */,
+000000000000000000000024 /* adhan1.caf in Resources */,
+000000000000000000000025 /* adhan2.caf in Resources */,
+000000000000000000000026 /* adhan3.caf in Resources */,
+000000000000000000000027 /* adhan4.caf in Resources */,
+000000000000000000000028 /* adhan5.caf in Resources */,
+000000000000000000000029 /* adhan6.caf in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+
+		00000000000000000000010C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		000000000000000000000017 /* Embed web app */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Embed web app";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# نسخ ملفات تطبيق الويب إلى حزمة التطبيق (مصدر واحد للحقيقة: مجلد المشروع الأعلى)\nSRC=\"$SRCROOT/..\"\nDEST=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/www\"\nmkdir -p \"$DEST\"\nrsync -a --delete --exclude 'ios' --exclude '.claude' --exclude '.git' \\\n  --exclude 'README.md' --exclude '.DS_Store' \"$SRC/\" \"$DEST/\"\n\n# ملف Firebase خاص بالمشروع ويُضاف فقط بعد تنزيله من Firebase Console.\nFIREBASE_CONFIG=\"$SRCROOT/Mishkat/GoogleService-Info.plist\"\nif [ -f \"$FIREBASE_CONFIG\" ]; then\n  cp \"$FIREBASE_CONFIG\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/GoogleService-Info.plist\"\n  echo \"embedded Firebase configuration\"\nelse\n  echo \"Firebase configuration is absent; push messaging stays disabled\"\nfi\n\necho \"embedded web app -> $DEST\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		000000000000000000000016 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+000000000000000000000114 /* PrayerTimes.swift in Sources */,
+000000000000000000000116 /* SharedStore.swift in Sources */,
+00000000000000000000001E /* MishkatApp.swift in Sources */,
+00000000000000000000001F /* WebScreen.swift in Sources */,
+000000000000000000000020 /* NativeBridge.swift in Sources */,
+000000000000000000000021 /* AppSchemeHandler.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+
+		00000000000000000000010A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+000000000000000000000118 /* MishkatWidget.swift in Sources */,
+				00000000000000000000D002 /* DuaWidget.swift in Sources */,
+000000000000000000000115 /* PrayerTimes.swift in Sources */,
+000000000000000000000117 /* SharedStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		00000000000000000000F002 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.17.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		00000000000000000000F003 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 00000000000000000000F002 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
+		};
+/* End XCSwiftPackageProductDependency section */
+
+/* Begin XCBuildConfiguration section */
+		00000000000000000000001A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+ALWAYS_SEARCH_USER_PATHS = NO;
+CLANG_ENABLE_MODULES = YES;
+CLANG_ENABLE_OBJC_ARC = YES;
+ENABLE_STRICT_OBJC_MSGSEND = YES;
+IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+SDKROOT = iphoneos;
+SWIFT_VERSION = 5.0;
+DEBUG_INFORMATION_FORMAT = dwarf;
+ENABLE_TESTABILITY = YES;
+GCC_OPTIMIZATION_LEVEL = 0;
+ONLY_ACTIVE_ARCH = YES;
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		00000000000000000000001B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+ALWAYS_SEARCH_USER_PATHS = NO;
+CLANG_ENABLE_MODULES = YES;
+CLANG_ENABLE_OBJC_ARC = YES;
+ENABLE_STRICT_OBJC_MSGSEND = YES;
+IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+SDKROOT = iphoneos;
+SWIFT_VERSION = 5.0;
+DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+ENABLE_NS_ASSERTIONS = NO;
+SWIFT_COMPILATION_MODE = wholemodule;
+SWIFT_OPTIMIZATION_LEVEL = "-O";
+VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		00000000000000000000001C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+APS_ENVIRONMENT = development;
+CODE_SIGNING_ALLOWED = YES;
+"CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]" = NO;
+CODE_SIGN_STYLE = Automatic;
+CURRENT_PROJECT_VERSION = 5;
+DEVELOPMENT_TEAM = Z6WLFR3247;
+ENABLE_PREVIEWS = YES;
+GENERATE_INFOPLIST_FILE = NO;
+CODE_SIGN_ENTITLEMENTS = Mishkat/Mishkat.entitlements;
+INFOPLIST_FILE = Mishkat/Info.plist;
+LD_RUNPATH_SEARCH_PATHS = (
+	"$(inherited)",
+	"@executable_path/Frameworks",
+);
+MARKETING_VERSION = 1.1;
+PRODUCT_BUNDLE_IDENTIFIER = com.dakomn.mishkatapp;
+PRODUCT_NAME = Mishkat;
+SWIFT_EMIT_LOC_STRINGS = YES;
+TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		00000000000000000000001D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+APS_ENVIRONMENT = production;
+CODE_SIGNING_ALLOWED = YES;
+"CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]" = NO;
+CODE_SIGN_STYLE = Automatic;
+CURRENT_PROJECT_VERSION = 5;
+DEVELOPMENT_TEAM = Z6WLFR3247;
+ENABLE_PREVIEWS = YES;
+GENERATE_INFOPLIST_FILE = NO;
+CODE_SIGN_ENTITLEMENTS = Mishkat/Mishkat.entitlements;
+INFOPLIST_FILE = Mishkat/Info.plist;
+LD_RUNPATH_SEARCH_PATHS = (
+	"$(inherited)",
+	"@executable_path/Frameworks",
+);
+MARKETING_VERSION = 1.1;
+PRODUCT_BUNDLE_IDENTIFIER = com.dakomn.mishkatapp;
+PRODUCT_NAME = Mishkat;
+SWIFT_EMIT_LOC_STRINGS = YES;
+TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+
+		00000000000000000000010E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+			CODE_SIGNING_ALLOWED = YES;
+			"CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]" = NO;
+			CODE_SIGN_ENTITLEMENTS = MishkatWidget/MishkatWidget.entitlements;
+			CODE_SIGN_STYLE = Automatic;
+			CURRENT_PROJECT_VERSION = 5;
+			DEVELOPMENT_TEAM = Z6WLFR3247;
+			GENERATE_INFOPLIST_FILE = NO;
+			INFOPLIST_FILE = MishkatWidget/Info.plist;
+			IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+			LD_RUNPATH_SEARCH_PATHS = (
+				"$(inherited)",
+				"@executable_path/Frameworks",
+				"@executable_path/../../Frameworks",
+			);
+			MARKETING_VERSION = 1.1;
+			PRODUCT_BUNDLE_IDENTIFIER = com.dakomn.mishkatapp.MishkatWidget;
+			PRODUCT_NAME = "$(TARGET_NAME)";
+			SKIP_INSTALL = YES;
+			SWIFT_VERSION = 5.0;
+			TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+
+		00000000000000000000010F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+			CODE_SIGNING_ALLOWED = YES;
+			"CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]" = NO;
+			CODE_SIGN_ENTITLEMENTS = MishkatWidget/MishkatWidget.entitlements;
+			CODE_SIGN_STYLE = Automatic;
+			CURRENT_PROJECT_VERSION = 5;
+			DEVELOPMENT_TEAM = Z6WLFR3247;
+			GENERATE_INFOPLIST_FILE = NO;
+			INFOPLIST_FILE = MishkatWidget/Info.plist;
+			IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+			LD_RUNPATH_SEARCH_PATHS = (
+				"$(inherited)",
+				"@executable_path/Frameworks",
+				"@executable_path/../../Frameworks",
+			);
+			MARKETING_VERSION = 1.1;
+			PRODUCT_BUNDLE_IDENTIFIER = com.dakomn.mishkatapp.MishkatWidget;
+			PRODUCT_NAME = "$(TARGET_NAME)";
+			SKIP_INSTALL = YES;
+			SWIFT_VERSION = 5.0;
+			TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		000000000000000000000018 /* Build configuration list for PBXProject "Mishkat" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+00000000000000000000001A /* Debug */,
+00000000000000000000001B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		000000000000000000000019 /* Build configuration list for PBXNativeTarget "Mishkat" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+00000000000000000000001C /* Debug */,
+00000000000000000000001D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+
+		00000000000000000000010D /* Build configuration list for PBXNativeTarget "MishkatWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				00000000000000000000010E /* Debug */,
+				00000000000000000000010F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 000000000000000000000013 /* Project object */;
+}

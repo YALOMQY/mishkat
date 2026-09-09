@@ -1,0 +1,25 @@
+{
+  "name": "مشكاة — قرآن وأذكار وقبلة ومواقيت الصلاة",
+  "short_name": "مشكاة",
+  "description": "تطبيق إسلامي متكامل يعمل بدون إنترنت: مواقيت الصلاة والتنبيهات، المصحف كاملاً، حصن المسلم، والقبلة.",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d3b32",
+  "theme_color": "#0d3b32",
+  "categories": ["lifestyle", "books", "utilities"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "مواقيت الصلاة", "url": "./index.html#home", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "القرآن الكريم", "url": "./index.html#quran", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "الأذكار", "url": "./index.html#adhkar", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "القبلة", "url": "./index.html#qibla", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

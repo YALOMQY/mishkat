@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": "2026.09.2",
+  "language": "ar",
+  "notice": "تعرض المكتبة المحتوى الذي تتوفر نصوصه الموثقة فقط، ويمكن حفظه للقراءة دون إنترنت.",
+  "books": [
+    {
+      "id": "nawawi40",
+      "title": "الأربعون النووية",
+      "author": "الإمام يحيى بن شرف النووي",
+      "category": "جوامع الكلم",
+      "description": "مجموعة الإمام النووي المشهورة، وعدد أحاديث متنها اثنان وأربعون حديثًا.",
+      "availability": "sample",
+      "availableItems": 3,
+      "expectedItems": 42,
+      "contentPath": "data/nawawi40.sample.json",
+      "contentBytes": 5071,
+      "contentSha256": "74df953e2a915ab6fde7bca17eae3d251d8af7e1cf4a0317b3721e01388ddaa7",
+      "sourceName": "موقع الشيخ عبد العزيز بن باز",
+      "sourceUrl": "https://binbaz.org.sa/audios/series/61/%D8%A7%D8%AC%D8%B2%D8%A7%D8%A1-%D9%85%D9%86-%D8%A7%D9%84%D8%A7%D8%B1%D8%A8%D8%B9%D9%8A%D9%86-%D8%A7%D9%84%D9%86%D9%88%D9%88%D9%8A%D8%A9"
+    }
+  ]
+}
