@@ -2,6 +2,18 @@
 
 Date: 2026-09-10
 
+## Current TestFlight status — verified 04:47 Asia/Aden
+
+- Upload processing: `COMPLETE`, no errors or warnings. Build 1.2 (6): `VALID`.
+- Build ID: `2937797d-d180-4dd0-b710-32ac75df58b8`; prerelease version 1.2 verified.
+- Internal testing: `IN_BETA_TESTING`. Build 6 is present in the existing internal `test` group (`d5b8582a-17e2-42d9-b287-96557498aaea`). The group picked it up automatically; the attempted manual API association was rejected, so no internal-group settings were changed.
+- External testing: associated build 6 with the existing external `test` group (`6bbbb303-9d2a-4a4d-a65a-46c73e429093`), preserving builds 5 and 3 and all existing public-link settings.
+- TestFlight beta review submitted at 04:45:15 Asia/Aden. Readback: `WAITING_FOR_REVIEW` / `WAITING_FOR_BETA_REVIEW`. External availability is not yet approved; do not present the public link as installing build 6 until approval.
+- Arabic (`ar-SA`) test notes updated and read back successfully; localization ID `8231c668-4dd7-44d1-8cdc-ac5db514491f`.
+- Safari App Store Connect readback also shows upload 1.2 (6) as `Complete`, both existing groups attached, and the external-review status `Waiting for Review`. No additional UI configuration change was necessary.
+- No additional binary upload, credential change, tester creation, App Store production submission, or expiration of an old build was performed during this follow-up.
+- Used deployment-checklist and structured-debugging skills to distinguish successful file delivery from Apple processing and actual tester availability.
+
 ## Scope
 
 - Existing application: `com.dakomn.mishkatapp`.
@@ -30,12 +42,13 @@ Date: 2026-09-10
 - Runtime allowlist verified on the final archive: no test artifacts, source-control directory, environment files, or signing keys in `www`.
 - Apple validation passed with no errors on 2026-09-10. Upload then succeeded with no errors at 04:25:49 Asia/Aden; delivery UUID `2937797d-d180-4dd0-b710-32ac75df58b8`.
 - At 04:31 Asia/Aden the new build was not yet returned by the App Store Connect builds API (checked both filtered and latest-build listings). Upload success is confirmed; processing state, TestFlight readiness and tester access for this build are not yet confirmed. Do not re-upload blindly; check for build 6 / version 1.2 first.
+- Follow-up at approximately 04:38 Asia/Aden: the `buildUploads` API confirms delivery `2937797d-d180-4dd0-b710-32ac75df58b8`, version 1.2 (6), state `PROCESSING`, with empty errors, warnings and infos. The linked build is still null. This explains the empty builds listing; a repeat upload is not indicated.
 - Exported IPA: 106,451,594 bytes; SHA-256 `39d2e03f817472eccdff487b2d4610064c0f7b0342ef4d1d2967ab39519b612f`. Archives and signing material remain local and excluded from Git.
 - Release source revision on GitHub: `c700f95` (includes application improvements from `33230d6`). Later report-only commits do not change the binary.
 
 ## Arabic TestFlight notes
 
-Prepared below; not yet attached because the new build resource is not available in the API. The existing beta locale is `ar-SA`.
+Attached to build 1.2 (6) in the existing `ar-SA` locale and verified by API readback.
 
 تحديث تجربة المصحف والختمة في مشكاة:
 - واجهة قراءة أهدأ، وأدوات أوضح للفهرس والبحث والعلامات والتلاوة.
