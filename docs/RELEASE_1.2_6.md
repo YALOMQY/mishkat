@@ -1,4 +1,4 @@
-# Mishkat 1.1 (6) — Release preparation
+# Mishkat 1.2 (6) — Release preparation
 
 Date: 2026-09-10
 
@@ -6,7 +6,7 @@ Date: 2026-09-10
 
 - Existing application: `com.dakomn.mishkatapp`.
 - Existing widget extension: `com.dakomn.mishkatapp.MishkatWidget`.
-- Marketing version remains 1.1; application and widget build numbers advance together from 5 to 6.
+- Marketing version advances to 1.2; application and widget build numbers advance together from 5 to 6. Apple validation rejected the initial 1.1 (6) candidate because the approved 1.1 release train is closed (90062 / 90186); no upload was attempted for that candidate.
 - Quran reader, search, bookmarks, contextual recitation controls, khatma flow, shared visual system, permission/location lifecycle fixes, and widget contrast improvements.
 - No bundle identifier, Firebase project, signing team, religious source asset, or prayer-calculation change in this release-preparation step.
 - Distribution requested: GitHub and TestFlight. No App Store production submission or automatic public release.
@@ -23,12 +23,12 @@ Date: 2026-09-10
 
 ## Archive verification
 
-- Xcode Release archive succeeded. Main application and widget present; both version 1.1, build 6.
-- Valid code signatures and application-group entitlements in the exported IPA.
-- Main app has production APNs entitlement and matching Firebase bundle configuration.
-- All 604 SVG pages present and SHA-256 hashes match their source assets. Current Quran/khatma JavaScript, HTML, CSS and service-worker bytes match the archive.
-- Runtime allowlist verified: no test artifacts, source-control directory, environment files, or signing keys in `www`.
-- Apple upload validation succeeds before transmission; processing state checked after upload.
+- Final 1.2 (6) Xcode Release archive and IPA export succeeded; both the application and widget versions were verified.
+- Exported application and widget signatures passed `codesign --verify --deep --strict` with access to the existing system trust store. Their existing shared Keychain group is `Z6WLFR3247.com.dakomn.mishkatapp.shared`, not an App Group; that architecture is unchanged.
+- Production APNs, matching Firebase bundle configuration, disabled debugging entitlement and non-exempt encryption declaration were verified in the exported IPA.
+- All 604 SVG pages in the final archive matched source SHA-256 hashes; current Quran/khatma JavaScript, HTML, CSS and service-worker bytes also matched.
+- Runtime allowlist verified on the final archive: no test artifacts, source-control directory, environment files, or signing keys in `www`.
+- Apple validation and conditional TestFlight upload are in progress. Server processing readback is pending.
 
 ## Known verification limits
 

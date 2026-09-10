@@ -414,7 +414,7 @@ LD_RUNPATH_SEARCH_PATHS = (
 	"$(inherited)",
 	"@executable_path/Frameworks",
 );
-MARKETING_VERSION = 1.1;
+MARKETING_VERSION = 1.2;
 PRODUCT_BUNDLE_IDENTIFIER = com.dakomn.mishkatapp;
 PRODUCT_NAME = Mishkat;
 SWIFT_EMIT_LOC_STRINGS = YES;
@@ -440,7 +440,7 @@ LD_RUNPATH_SEARCH_PATHS = (
 	"$(inherited)",
 	"@executable_path/Frameworks",
 );
-MARKETING_VERSION = 1.1;
+MARKETING_VERSION = 1.2;
 PRODUCT_BUNDLE_IDENTIFIER = com.dakomn.mishkatapp;
 PRODUCT_NAME = Mishkat;
 SWIFT_EMIT_LOC_STRINGS = YES;
@@ -467,7 +467,7 @@ TARGETED_DEVICE_FAMILY = "1,2";
 				"@executable_path/Frameworks",
 				"@executable_path/../../Frameworks",
 			);
-			MARKETING_VERSION = 1.1;
+			MARKETING_VERSION = 1.2;
 			PRODUCT_BUNDLE_IDENTIFIER = com.dakomn.mishkatapp.MishkatWidget;
 			PRODUCT_NAME = "$(TARGET_NAME)";
 			SKIP_INSTALL = YES;
@@ -495,7 +495,7 @@ TARGETED_DEVICE_FAMILY = "1,2";
 				"@executable_path/Frameworks",
 				"@executable_path/../../Frameworks",
 			);
-			MARKETING_VERSION = 1.1;
+			MARKETING_VERSION = 1.2;
 			PRODUCT_BUNDLE_IDENTIFIER = com.dakomn.mishkatapp.MishkatWidget;
 			PRODUCT_NAME = "$(TARGET_NAME)";
 			SKIP_INSTALL = YES;
