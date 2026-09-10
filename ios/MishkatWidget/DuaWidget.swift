@@ -97,7 +97,7 @@ struct DuaWidgetView: View {
                 if !entry.dua.title.isEmpty {
                     Text(entry.dua.title)
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(MishkatWidgetTheme.gold)
+                        .foregroundStyle(MishkatWidgetTheme.readingAccent(for: colorScheme))
                         .lineLimit(1)
                 }
 
@@ -132,7 +132,7 @@ struct DuaWidgetView: View {
                 if !entry.dua.title.isEmpty {
                     Text(entry.dua.title)
                         .font(.subheadline.weight(.bold))
-                        .foregroundStyle(MishkatWidgetTheme.gold)
+                        .foregroundStyle(MishkatWidgetTheme.readingAccent(for: colorScheme))
                         .lineLimit(1)
                 }
 
@@ -193,6 +193,7 @@ struct DuaWidgetView: View {
 }
 
 private struct SourceLabel: View {
+    @Environment(\.colorScheme) private var colorScheme
     let title: String
 
     var body: some View {
@@ -203,7 +204,7 @@ private struct SourceLabel: View {
             Text(title)
                 .font(.caption2.weight(.semibold))
         }
-        .foregroundStyle(MishkatWidgetTheme.gold)
+        .foregroundStyle(MishkatWidgetTheme.readingAccent(for: colorScheme))
     }
 }
 

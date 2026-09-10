@@ -25,7 +25,10 @@ const Quran = (function () {
   let audioRequest = 0, audioCandidateIndex = 0, audioCandidates = [], audioLoadTimer = null;
   let pendingPlayback = false, savedPlaybackSecond = 0, currentAudioKey = '';
   let swipeStart = null, pageTurnTimer = null, readingSizeSaveTimer = null;
+  let readingSizeFrame = null;
   let installHealth = { state: 'unknown', missing: [] };
+  let indexMode = 'surah', indexScroll = 0, indexFocus = null;
+  let toolsInvoker = null, returnPoint = null, deletedBookmark = null, suppressAyahClickUntil = 0;
   const pageCache = new Map();
   const referenceCache = new Map();
   const actionHandlers = new Map();
@@ -47,6 +50,7 @@ const Quran = (function () {
     const paths = {
       play: '<path d="m9 6 9 6-9 6Z"/>',
       mark: '<path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.8L6 21Z"/>',
+      trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6M14 11v6"/>',
       copy: '<rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/>',
       share: '<path d="M12 15V3M8 7l4-4 4 4"/><path d="M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8"/>',
       note: '<path d="M4 20h4L19 9l-4-4L4 16Z"/><path d="m13 7 4 4"/>',
@@ -70,9 +74,23 @@ const Quran = (function () {
     const percent = QuranCore.readingPercent(size);
     const box = $('#ayahBox');
     const viewport = box && box.querySelector('.mushaf-page-viewport');
-    const centerRatio = viewport && viewport.scrollWidth
+    const centerRatio = preserveCenter && viewport && viewport.scrollWidth
       ? (viewport.scrollLeft + viewport.clientWidth / 2) / viewport.scrollWidth
       : 0.5;
+    const scroller = $('#app');
+    const before = viewport?.getBoundingClientRect();
+    const scrollRect = scroller?.getBoundingClientRect();
+    const barBottom = $('#quranReader .reader-bar')?.getBoundingClientRect().bottom || 0;
+    const tools = $('#readerTools');
+    const playerTop = Math.min(...['#player', '#readerDock'].map(selector => {
+      const element = $(selector); return element?.getClientRects().length ? element.getBoundingClientRect().top : innerHeight;
+    }), tools && !tools.classList.contains('hidden') ? tools.getBoundingClientRect().top : innerHeight);
+    const visibleTop = before && Math.max(before.top, scrollRect.top, barBottom);
+    const visibleBottom = before && Math.min(before.bottom, scrollRect.bottom, playerTop);
+    // Anchor only the visible paper, never the settings panel or a hidden page.
+    const readingAnchor = preserveCenter && before?.height && visibleBottom > visibleTop
+      ? { y: (visibleTop + visibleBottom) / 2, ratio: ((visibleTop + visibleBottom) / 2 - before.top) / before.height }
+      : null;
 
     if (box) {
       box.style.setProperty('--mushaf-zoom', scale.toFixed(4));
@@ -103,10 +121,25 @@ const Quran = (function () {
       button.setAttribute('aria-pressed', String(selected));
     });
 
-    if (viewport && preserveCenter) requestAnimationFrame(() => {
-      const nextLeft = Math.max(0, centerRatio * viewport.scrollWidth - viewport.clientWidth / 2);
-      viewport.scrollTo({ left: nextLeft, behavior: 'auto' });
-    });
+    cancelAnimationFrame(readingSizeFrame);
+    if (viewport) {
+      // أبقِ موضع القراءة في الوسط طوال انتقال العرض، لا في أول إطار فقط.
+      // Reduced-motion CSS still settles across layout frames. Re-anchor for
+      // three frames without animating, rather than accepting the pre-zoom size.
+      const duration = preserveCenter && !matchMedia('(prefers-reduced-motion: reduce)').matches ? 240 : 48;
+      const start = performance.now();
+      const anchor = now => {
+        if (!viewport.isConnected || !viewport.clientWidth) return;
+        const nextLeft = Math.max(0, centerRatio * viewport.scrollWidth - viewport.clientWidth / 2);
+        viewport.scrollTo({ left: nextLeft, behavior: 'instant' });
+        if (readingAnchor) {
+          const rect = viewport.getBoundingClientRect();
+          scroller.scrollTop += rect.top + rect.height * readingAnchor.ratio - readingAnchor.y;
+        }
+        if (now - start < duration) readingSizeFrame = requestAnimationFrame(anchor);
+      };
+      readingSizeFrame = requestAnimationFrame(anchor);
+    }
     return { size, scale, percent };
   }
 
@@ -143,21 +176,19 @@ const Quran = (function () {
     if (DATA) return DATA;
     if (loadPromise) return loadPromise;
     loadPromise = (async () => {
-      const res = await fetch('data/quran.json');
-      if (!res.ok) throw new Error('تعذّر تحميل نص القرآن');
-      DATA = await res.json();
+      DATA = await fetchAppJSON('data/quran.json');
       plain = DATA.surahs.map(s => ({ name: strip(s.name), ayahs: s.ayahs.map(strip) }));
       await loadMushafManifest();
       verifyMushafInstall().catch(error => console.warn('[mushaf:health]', error));
       return DATA;
-    })();
+    })().catch(error => { DATA = null; loadPromise = null; throw error; });
     return loadPromise;
   }
 
   async function loadMushafManifest(force = false) {
     if (MUSHAF && !force) return MUSHAF;
     try {
-      const res = await fetch(MUSHAF_MANIFEST_URL, { cache: force ? 'reload' : 'default' });
+      const res = await fetchWithTimeout(MUSHAF_MANIFEST_URL, { cache: force ? 'reload' : 'default' }, 8000);
       if (!res.ok) throw new Error(`manifest HTTP ${res.status}`);
       const manifest = await res.json();
       const valid = manifest && manifest.edition === 'hafs-kfqc-madinah-604'
@@ -208,41 +239,60 @@ const Quran = (function () {
   function renderMarks() {
     const box = $('#marksList'), bm = Store.s.bookmarks || [];
     if (!bm.length) {
-      box.innerHTML = '<p class="empty">لا توجد علامات محفوظة. اضغط على أي آية ثم «حفظ علامة».</p>';
+      box.innerHTML = '<div class="quran-empty"><b>اترك علامة للعودة</b><p>من داخل المصحف، اضغط رمز العلامة لحفظ موضعك، أو اختر آية ثم «حفظ علامة».</p></div>';
+      renderDeletedBookmark();
       return;
     }
     box.innerHTML = bm.map((b, i) => `
+      <div class="quran-bookmark-row">
       <button class="surah-item" data-surah="${b.s}" data-ayah="${b.a}">
-        <span class="num"><i>${toAr(i + 1)}</i></span>
+        <span class="bookmark-symbol" aria-hidden="true">${actionIcon('mark')}</span>
         <span class="info"><b>${surah(b.s).name} — آية ${toAr(b.a)}</b><small>${esc((b.t || '').slice(0, 60))}…</small></span>
-        <span class="pg del" data-del="${i}" aria-label="حذف العلامة">✕</span>
-      </button>`).join('');
+      </button><button type="button" class="icon-btn quran-delete-mark" data-del="${i}" aria-label="حذف علامة ${esc(surah(b.s).name)} الآية ${b.a}">${actionIcon('trash')}</button></div>`).join('');
+    renderDeletedBookmark();
+  }
+
+  function renderDeletedBookmark() {
+    if (deletedBookmark) $('#marksList').insertAdjacentHTML('afterbegin', '<div class="quran-mark-feedback" role="status"><span>أُزيلت العلامة</span><button type="button" data-undo-mark>تراجع</button></div>');
+    if (indexMode === 'marks' && !$('#surahSearch').value.trim()) $('#quranIndexSummary').textContent = `${toAr((Store.s.bookmarks || []).length)} علامات محفوظة`;
   }
 
   function renderLastRead() {
     const lr = Store.s.lastRead, box = $('#lastReadBox');
-    if (!lr || !surah(lr.s)) { box.innerHTML = ''; return; }
+    if (!lr || !surah(lr.s)) {
+      box.innerHTML = `<button type="button" class="last-read" data-surah="1"><span class="bookmark-symbol" aria-hidden="true">${actionIcon('book')}</span><span class="last-read-copy"><small>مصحفك بين يديك</small><b>ابدأ من الفاتحة</b><span>604 صفحات بالرسم الموثق</span></span><span aria-hidden="true">‹</span></button>`; return;
+    }
     const page = lr.page || pageFor(lr.s, lr.a || 1);
     box.innerHTML = `<button class="last-read" data-surah="${lr.s}" data-ayah="${lr.a}">
-      <span>متابعة القراءة · صفحة ${toAr(page)}</span><b>${surah(lr.s).name} — آية ${toAr(lr.a)}</b></button>`;
+      <span class="bookmark-symbol" aria-hidden="true">${actionIcon('mark')}</span><span class="last-read-copy"><small>تابع من حيث توقفت</small><b>${surah(lr.s).name}</b><span>صفحة ${toAr(page)} · آية ${toAr(lr.a)}</span></span><span aria-hidden="true">‹</span></button>`;
+  }
+
+  function showIndexMode() {
+    ['surah', 'juz', 'marks'].forEach(mode => $('#' + ({surah:'surahList',juz:'juzList',marks:'marksList'})[mode]).classList.toggle('hidden', mode !== indexMode));
+    $('#quranIndexSummary').textContent = indexMode === 'surah' ? '114 سورة' : indexMode === 'juz' ? '30 جزءًا' : `${toAr((Store.s.bookmarks || []).length)} علامات محفوظة`;
   }
 
   /* ───────── البحث ───────── */
   function search(q) {
-    const box = $('#searchResults'), qq = strip(q);
+    const box = $('#searchResults'), qq = strip(q).toLowerCase();
+    const digits = q.trim().replace(/[٠-٩]/g, n => String('٠١٢٣٤٥٦٧٨٩'.indexOf(n))).replace(/[۰-۹]/g, n => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(n)));
     const showIdx = v => {
       ['#surahList', '#juzList', '#marksList', '#lastReadBox', '#quranSeg'].forEach(s => $(s).classList.toggle('hidden', !v));
       box.classList.toggle('hidden', v);
+      if (v) showIndexMode();
     };
-    if (qq.length < 2) { showIdx(true); box.innerHTML = ''; return; }
+    $('#btnClearQuranSearch').classList.toggle('hidden', !q);
+    $('.quran-search').classList.toggle('has-query', Boolean(q));
+    if (!qq) { showIdx(true); box.innerHTML = ''; return; }
     showIdx(false);
 
     const names = DATA.surahs.filter((s, i) => plain[i].name.includes(qq)
-      || String(s.n) === q.trim() || s.en.toLowerCase().includes(q.toLowerCase()));
+      || String(s.n) === digits || s.en.toLowerCase().includes(qq));
     const hits = [];
     for (let i = 0; i < plain.length && hits.length < 150; i++)
       for (let j = 0; j < plain[i].ayahs.length && hits.length < 150; j++)
         if (plain[i].ayahs[j].includes(qq)) hits.push({ s: i + 1, a: j + 1 });
+    $('#quranIndexSummary').textContent = `${toAr(names.length)} سور · ${toAr(hits.length)}${hits.length >= 150 ? '+' : ''} آيات مطابقة`;
 
     box.innerHTML =
       (names.length ? '<h4 class="res-h">سور مطابقة</h4>' + names.map(s =>
@@ -252,12 +302,14 @@ const Quran = (function () {
         `<button class="res-ayah" data-surah="${h.s}" data-ayah="${h.a}">
           <p class="q">${surah(h.s).ayahs[h.a - 1]}</p>
           <small>${surah(h.s).name} · آية ${toAr(h.a)} · ص ${toAr(pageFor(h.s, h.a))}</small></button>`).join('')
-        : (names.length ? '' : `<p class="empty">لا توجد نتائج لـ «${esc(q)}»</p>`));
+        : (names.length ? '' : `<div class="quran-empty"><b>لم نجد «${esc(q)}»</b><p>جرّب اسم سورة أو كلمات أقصر من الآية، دون الحاجة إلى التشكيل.</p></div>`));
   }
 
   /* ───────── القارئ ───────── */
   function open(n, ayah) {
     const wasIndex = !$('#quranIndex').classList.contains('hidden');
+    if (wasIndex) { indexScroll = $('#app').scrollTop; indexFocus = document.activeElement; returnPoint = null; updateReturnPoint(); }
+    if (playing || pendingPlayback) stop();
     cur = { surah: n, ayah: ayah || 1 };
     if (wasIndex && window.Nav) Nav.enter();
     $('#quranIndex').classList.add('hidden');
@@ -266,6 +318,7 @@ const Quran = (function () {
     renderAyahs();
     rememberReading();
     renderLastRead();
+    $('#btnBackIndex').focus({preventScroll:true});
   }
 
   function juzOf(s, a) {
@@ -353,11 +406,7 @@ const Quran = (function () {
         </div>
       </div>
     </div>
-    <nav class="mushaf-page-nav" aria-label="التنقل بين صفحات المصحف">
-      <button type="button" data-page-delta="-1" ${page <= 1 ? 'disabled' : ''} aria-label="الصفحة السابقة">السابقـة</button>
-      <span aria-live="polite">صفحة <b>${toAr(page)}</b> من ${toAr(MUSHAF_PAGE_COUNT)}</span>
-      <button type="button" data-page-delta="1" ${page >= MUSHAF_PAGE_COUNT ? 'disabled' : ''} aria-label="الصفحة التالية">التاليـة</button>
-    </nav>`;
+    <p class="mushaf-page-hint">اسحب يمينًا للتالي أو استخدم الأسهم. اضغط آية للتفسير والمزيد.</p>`;
   }
 
   function renderMushafUnavailable(page, error) {
@@ -376,9 +425,57 @@ const Quran = (function () {
   function updateReaderHeader(page = null) {
     const s = surah(cur.surah);
     $('#rdSurahName').textContent = 'سورة ' + s.name;
+    $('#btnReaderLocation').setAttribute('aria-label', `سورة ${s.name}، صفحة ${page || currentPage}، تغيير موضع القراءة`);
     $('#rdSurahMeta').textContent = page
       ? `صفحة ${toAr(page)} من ${toAr(MUSHAF_PAGE_COUNT)} · الجزء ${toAr(juzOf(cur.surah, cur.ayah))}`
       : `${s.type} · ${toAr(s.ayahs.length)} آية · الجزء ${toAr(juzOf(cur.surah, cur.ayah))}`;
+    $('#readerPageNumber').textContent = `${toAr(page || currentPage)} / ${toAr(MUSHAF_PAGE_COUNT)}`;
+    $('#btnReaderPage').setAttribute('aria-label', `صفحة ${page || currentPage} من 604، انتقال إلى صفحة`);
+    $('#btnPreviousPage').disabled = (page || currentPage) <= 1;
+    $('#btnFollowingPage').disabled = (page || currentPage) >= MUSHAF_PAGE_COUNT;
+    updateBookmarkButton(); updateReciterLabel();
+    if (!playing && !pendingPlayback) $('#playerInfo').textContent = `${s.name} · آية ${toAr(cur.ayah)}`;
+  }
+
+  function updateBookmarkButton() {
+    if (!cur.surah) return;
+    const marked = (Store.s.bookmarks || []).some(b => b.s === cur.surah && b.a === cur.ayah);
+    $('#btnReaderBookmark').setAttribute('aria-pressed', String(marked));
+    $('#btnReaderBookmark').setAttribute('aria-label', `${marked ? 'إزالة العلامة عند' : 'حفظ علامة عند'} ${surah(cur.surah).name}، الآية ${cur.ayah}`);
+  }
+
+  function updateReciterLabel() {
+    $('#playerReciter').textContent = (RECITERS.find(r => r[0] === Store.s.reciter) || [, 'اختر القارئ'])[1];
+  }
+
+  function setAudioPanel(show) {
+    $('#player').classList.toggle('hidden', !show);
+    $('#quranReader').classList.toggle('audio-expanded', show);
+    $('#btnReaderAudio').setAttribute('aria-expanded', String(show));
+  }
+
+  function updateReturnPoint() {
+    $('#readerReturn').classList.toggle('hidden', !returnPoint);
+    if (returnPoint) $('#readerReturnText').textContent = `موضعك السابق: صفحة ${returnPoint.page}`;
+  }
+
+  function selectReaderPanel(panel) {
+    const names = {appearance:'readerAppearance',navigation:'readerNavigation',audio:'readerAudioSettings'};
+    Object.entries(names).forEach(([name,id]) => $('#'+id).classList.toggle('hidden', name !== panel));
+    $$('[data-reader-panel]').forEach(button => {
+      const selected = button.dataset.readerPanel === panel;
+      button.classList.toggle('on', selected); button.setAttribute('aria-selected', String(selected));
+    });
+  }
+
+  function openReaderPanel(panel, invoker) {
+    toolsInvoker = invoker || $('#btnReaderMenu');
+    selectReaderPanel(panel);
+    $('#readerThemeSel').value = Store.s.theme;
+    $('#readerTools').classList.remove('hidden');
+    $('#btnReaderMenu').setAttribute('aria-expanded', 'true');
+    $('#readerTools').scrollTop = 0;
+    $(`[data-reader-panel="${panel}"]`).focus({preventScroll:true});
   }
 
   function setMushafToolState() {
@@ -503,18 +600,18 @@ const Quran = (function () {
     svg.classList.add('mushaf-svg');
     svg.removeAttribute('width');
     svg.removeAttribute('height');
-    svg.setAttribute('role', 'img');
+    svg.setAttribute('role', 'group');
     svg.setAttribute('aria-label', `صفحة ${toAr(page)} من مصحف المدينة`);
     svg.dataset.page = page;
 
     const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
     style.textContent = `
-      g{pointer-events:none}
-      path:not(.ayahPolygon){fill:var(--mushaf-ink,#231f20)}
-      #ayah_markers path{fill:var(--mushaf-accent,#9f7d17)}
-      .ayahPolygon{pointer-events:all;cursor:pointer;fill:#c7a33a;fill-opacity:0;stroke:transparent;stroke-width:.8;transition:fill-opacity .16s ease,stroke .16s ease}
-      .ayahPolygon:focus,.ayahPolygon.is-selected{fill-opacity:.24;stroke:#a98418;outline:none}
-      @media(prefers-reduced-motion:reduce){.ayahPolygon{transition:none}}
+      .mushaf-svg g{pointer-events:none}
+      .mushaf-svg path:not(.ayahPolygon){fill:var(--mushaf-ink,#231f20)}
+      .mushaf-svg .ayah_markers path{fill:var(--mushaf-accent,#9f7d17)}
+      .mushaf-svg .ayahPolygon{pointer-events:all;cursor:pointer;fill:#c7a33a;fill-opacity:0;stroke:transparent;stroke-width:.8;transition:fill-opacity .16s ease,stroke .16s ease}
+      .mushaf-svg .ayahPolygon:focus,.mushaf-svg .ayahPolygon.is-selected{fill-opacity:.24;stroke:#a98418;outline:none}
+      @media(prefers-reduced-motion:reduce){.mushaf-svg .ayahPolygon{transition:none}}
     `;
     svg.prepend(style);
     return svg;
@@ -527,7 +624,7 @@ const Quran = (function () {
       const s = Number(path.getAttribute('surah')), a = Number(path.getAttribute('ayah'));
       path.setAttribute('tabindex', '0');
       path.setAttribute('role', 'button');
-      path.setAttribute('aria-label', `سورة ${surah(s).name}، الآية ${toAr(a)}`);
+      path.setAttribute('aria-label', `سورة ${surah(s).name}، الآية ${toAr(a)}. ${surah(s).ayahs[a - 1]}`);
     });
   }
 
@@ -542,6 +639,7 @@ const Quran = (function () {
   function goPage(delta) {
     const next = clampPage(currentPage + delta);
     if (next === currentPage) return;
+    if (playing || pendingPlayback) stop();
     renderMushafPage(next);
     const box = $('#ayahBox');
     clearTimeout(pageTurnTimer);
@@ -555,8 +653,8 @@ const Quran = (function () {
 
   function resetReaderScroll() {
     const app = $('#app');
-    if (app) app.scrollTo({ top: 0, behavior: 'auto' });
-    window.scrollTo({ top: 0, behavior: 'auto' });
+    if (app) app.scrollTo({ top: 0, behavior: 'instant' });
+    window.scrollTo({ top: 0, behavior: 'instant' });
   }
 
   function scrollToAyah(a, smooth = true) {
@@ -575,6 +673,7 @@ const Quran = (function () {
   function selectMushafAyah(path) {
     const s = Number(path.getAttribute('surah')), a = Number(path.getAttribute('ayah'));
     if (!s || !a || !surah(s)) return;
+    if (playing || pendingPlayback) stop();
     cur = { surah: s, ayah: a };
     highlight(a);
     updateReaderHeader(currentPage);
@@ -637,7 +736,7 @@ const Quran = (function () {
       toast('تم حفظ العلامة');
     }
     Store.set('bookmarks', bm.slice(0, 100));
-    renderMarks();
+    deletedBookmark = null; renderMarks(); updateBookmarkButton();
   }
 
   function noteKey(s, a) { return `${s}:${a}`; }
@@ -864,6 +963,7 @@ const Quran = (function () {
 
   function setPlaying(v) {
     playing = v;
+    $('#btnReaderAudio span').textContent = v ? 'تلاوة جارية' : 'تلاوة';
     $('#btnPlay').classList.toggle('is-playing', v);
     $('#btnPlay').setAttribute('aria-label', v ? 'إيقاف التلاوة مؤقتاً' : 'تشغيل التلاوة');
     $('#player').classList.toggle('active', v);
@@ -929,6 +1029,7 @@ const Quran = (function () {
 
   function play(options = {}) {
     if (!cur.surah) return;
+    setAudioPanel(true);
     const a = ensureAudio();
     const key = `${Store.s.reciter}:${globalNum(cur.surah, cur.ayah)}`;
     $('#playerInfo').textContent = `${surah(cur.surah).name} · آية ${toAr(cur.ayah)}`;
@@ -990,11 +1091,23 @@ const Quran = (function () {
   }
 
   function backToIndex() {
+    document.body.classList.remove('reading-focus');
+    $('#readerTools').classList.add('hidden');
+    $('#btnReaderMenu').setAttribute('aria-expanded', 'false');
+    $('#btnReaderFocus').setAttribute('aria-pressed', 'false');
+    $('#btnReaderFocus').setAttribute('aria-label', 'قراءة بملء الشاشة');
     pageRequest++;
     stop();
     $('#quranReader').classList.add('hidden');
     $('#quranIndex').classList.remove('hidden');
     renderMarks(); renderLastRead();
+    search($('#surahSearch').value);
+    returnPoint = null; updateReturnPoint(); setAudioPanel(false);
+    const replacement = indexFocus?.dataset?.surah
+      ? $$('#quranIndex [data-surah]').find(el => el.dataset.surah === indexFocus.dataset.surah && (el.dataset.ayah || '1') === (indexFocus.dataset.ayah || '1')) : null;
+    const focus = indexFocus?.isConnected && $('#quranIndex').contains(indexFocus) ? indexFocus : replacement || $('#surahSearch');
+    focus.focus({preventScroll:true});
+    $('#app').scrollTo({top:indexScroll,behavior:'instant'});
   }
 
   /* ───────── ربط الأحداث ───────── */
@@ -1003,36 +1116,94 @@ const Quran = (function () {
     bound = true;
     const idx = $('#quranIndex');
     idx.addEventListener('click', e => {
+      if (e.target.closest('[data-undo-mark]') && deletedBookmark) {
+        const bm = Store.s.bookmarks.slice(), saved = deletedBookmark;
+        if (!bm.some(b => b.s === saved.value.s && b.a === saved.value.a)) bm.splice(Math.min(saved.index, bm.length), 0, saved.value);
+        Store.set('bookmarks', bm); deletedBookmark = null; renderMarks();
+        $('#quranSeg [data-mode="marks"]').focus({preventScroll:true}); toast('استُعيدت العلامة'); return;
+      }
       const del = e.target.closest('[data-del]');
       if (del) {
         e.stopPropagation();
-        const bm = Store.s.bookmarks.slice(); bm.splice(+del.dataset.del, 1);
-        Store.set('bookmarks', bm); renderMarks(); return;
+        const bm = Store.s.bookmarks.slice(), index = +del.dataset.del;
+        deletedBookmark = {index, value:bm[index]}; bm.splice(index, 1);
+        Store.set('bookmarks', bm); renderMarks(); $('[data-undo-mark]')?.focus({preventScroll:true}); return;
       }
       const b = e.target.closest('[data-surah]');
       if (b) open(+b.dataset.surah, +b.dataset.ayah || 1);
     });
     $('#surahSearch').addEventListener('input', e => search(e.target.value));
+    $('#btnClearQuranSearch').addEventListener('click', () => { $('#surahSearch').value = ''; search(''); $('#surahSearch').focus(); });
+    $('#indexPageForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const input = $('#indexPageNumber'), page = Number(input.value);
+      if (!input.checkValidity() || !Number.isInteger(page)) { input.reportValidity(); return; }
+      const point = resolvePoint('page', page); open(point.s, point.a);
+    });
     $('#quranSeg').addEventListener('click', e => {
       const b = e.target.closest('button'); if (!b) return;
+      $('#surahSearch').value = '';
+      $('#searchResults').classList.add('hidden');
       $$('#quranSeg button').forEach(x => {
         const selected = x === b;
         x.classList.toggle('on', selected);
         x.setAttribute('aria-selected', String(selected));
       });
-      $('#surahList').classList.toggle('hidden', b.dataset.mode !== 'surah');
-      $('#juzList').classList.toggle('hidden', b.dataset.mode !== 'juz');
-      $('#marksList').classList.toggle('hidden', b.dataset.mode !== 'marks');
+      indexMode = b.dataset.mode;
+      search('');
     });
 
     $('#btnBackIndex').addEventListener('click', () => (window.Nav ? Nav.exit(backToIndex) : backToIndex()));
     $('#btnReaderMenu').addEventListener('click', e => {
-      const hidden = $('#readerTools').classList.toggle('hidden');
-      e.currentTarget.setAttribute('aria-expanded', String(!hidden));
+      if ($('#readerTools').classList.contains('hidden')) openReaderPanel('appearance', e.currentTarget);
+      else closeReadingTools(true);
     });
+    const closeReadingTools = (restoreFocus = false) => {
+      $('#readerTools').classList.add('hidden');
+      $('#btnReaderMenu').setAttribute('aria-expanded', 'false');
+      if (restoreFocus) (toolsInvoker?.isConnected ? toolsInvoker : $('#btnReaderMenu')).focus({ preventScroll: true });
+    };
+    $('#btnCloseReaderTools').addEventListener('click', () => closeReadingTools(true));
+    document.addEventListener('pointerdown', e => {
+      if (!e.target.closest('#readerTools,#btnReaderMenu,#btnReaderPage,#btnReaderLocation,#btnReciterOptions') && !$('#readerTools').classList.contains('hidden')) closeReadingTools();
+    });
+    document.addEventListener('focusin', e => {
+      // WebKit focuses the tabindex=-1 main container when a tap blurs a tab.
+      // Only moving to an actual control means keyboard navigation out of the panel.
+      const control = e.target.closest('button,input,select,textarea,a[href],summary,[tabindex]:not([tabindex="-1"])');
+      if (!control) return;
+      if (!control.closest('#readerTools,#btnReaderMenu,#btnReaderPage,#btnReaderLocation,#btnReciterOptions') && !$('#readerTools').classList.contains('hidden')) closeReadingTools();
+    });
+    const updateKeyboardInset = () => {
+      const v = window.visualViewport;
+      const inset = v && v.scale <= 1.01 ? Math.max(0, innerHeight - v.height - v.offsetTop) : 0;
+      document.documentElement.style.setProperty('--keyboard-inset', `${inset}px`);
+    };
+    window.visualViewport?.addEventListener('resize', updateKeyboardInset);
+    updateKeyboardInset();
+    $('#btnReaderFocus').addEventListener('click', e => {
+      const focus = document.body.classList.toggle('reading-focus');
+      e.currentTarget.setAttribute('aria-pressed', String(focus));
+      e.currentTarget.setAttribute('aria-label', focus ? 'إظهار شريط التنقل' : 'قراءة بملء الشاشة');
+    });
+    $$('[data-reader-panel]').forEach(button => button.addEventListener('click', () => selectReaderPanel(button.dataset.readerPanel)));
+    ['#btnReaderPage','#btnReaderLocation'].forEach(selector => $(selector).addEventListener('click', e => {
+      $('#gotoType').value = 'page'; $('#gotoValue').value = currentPage; updateGotoBounds(); openReaderPanel('navigation', e.currentTarget);
+    }));
+    $('#btnPreviousPage').addEventListener('click', () => goPage(-1));
+    $('#btnFollowingPage').addEventListener('click', () => goPage(1));
+    $('#btnReaderBookmark').addEventListener('click', () => { if (cur.surah) toggleBookmark(cur.surah, cur.ayah, surah(cur.surah).ayahs[cur.ayah - 1]); });
+    $('#btnReaderAudio').addEventListener('click', () => setAudioPanel($('#player').classList.contains('hidden')));
+    $('#btnReciterOptions').addEventListener('click', e => openReaderPanel('audio', e.currentTarget));
+    $('#btnReaderReturn').addEventListener('click', () => {
+      const point = returnPoint; returnPoint = null; updateReturnPoint();
+      if (point) open(point.s, point.a);
+    });
+    $('#btnDismissReaderReturn').addEventListener('click', () => { returnPoint = null; updateReturnPoint(); $('#btnReaderPage').focus({preventScroll:true}); });
 
     const ayahBox = $('#ayahBox');
     ayahBox.addEventListener('click', e => {
+      if (performance.now() < suppressAyahClickUntil) { e.preventDefault(); return; }
       const pageButton = e.target.closest('[data-page-delta]');
       if (pageButton) { goPage(Number(pageButton.dataset.pageDelta)); return; }
       const retry = e.target.closest('[data-mushaf-retry]');
@@ -1049,15 +1220,21 @@ const Quran = (function () {
       if (polygon && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); selectMushafAyah(polygon); }
     });
     ayahBox.addEventListener('touchstart', e => {
+      swipeStart = null;
       if (e.touches.length !== 1) return;
       if (window.visualViewport && window.visualViewport.scale > 1.02) return;
       if (QuranCore.readingScale(Store.s.quranFont) > 1.02) return;
-      if (e.target.closest('button,input,select,a,.ayahPolygon,[role="button"]')) return;
+      if (e.target.closest('button,input,select,a')) return;
       swipeStart = { x: e.touches[0].clientX, y: e.touches[0].clientY, at: performance.now() };
     }, { passive: true });
     ayahBox.addEventListener('touchmove', e => {
       if (e.touches.length !== 1 || window.visualViewport && window.visualViewport.scale > 1.02 || QuranCore.readingScale(Store.s.quranFont) > 1.02) swipeStart = null;
-    }, { passive: true });
+      if (swipeStart) {
+        const dx = e.touches[0].clientX - swipeStart.x, dy = e.touches[0].clientY - swipeStart.y;
+        if (Math.abs(dy) > 14 && Math.abs(dy) > Math.abs(dx)) swipeStart = null;
+        else if (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy) * 1.25 && e.cancelable) e.preventDefault();
+      }
+    }, { passive: false });
     ayahBox.addEventListener('touchend', e => {
       if (!swipeStart || !e.changedTouches.length) return;
       const dx = e.changedTouches[0].clientX - swipeStart.x;
@@ -1066,12 +1243,15 @@ const Quran = (function () {
       swipeStart = null;
       if (elapsed <= 700 && Math.abs(dx) >= 55 && Math.abs(dx) > Math.abs(dy) * 1.25) {
         // في المصحف العربي: سحب الورقة إلى اليمين يكشف الصفحة التالية.
+        suppressAyahClickUntil = performance.now() + 450;
+        if (e.cancelable) e.preventDefault();
         goPage(dx > 0 ? 1 : -1);
       }
-    }, { passive: true });
+    }, { passive: false });
     ayahBox.addEventListener('touchcancel', () => { swipeStart = null; }, { passive: true });
 
     const readerFontRange = $('#readerFontRange');
+    $('#readerThemeSel').addEventListener('change', e => { $('#selTheme').value = e.target.value; $('#selTheme').dispatchEvent(new Event('change')); });
     bindReadingSizeControl(readerFontRange);
     $('#fontPlus').addEventListener('click', () => setReadingSize(Number(Store.s.quranFont) + 2, { commit: true }));
     $('#fontMinus').addEventListener('click', () => setReadingSize(Number(Store.s.quranFont) - 2, { commit: true }));
@@ -1088,14 +1268,15 @@ const Quran = (function () {
     };
     gotoType.addEventListener('change', updateGotoBounds);
     updateGotoBounds();
-    $('#btnGoLocation').addEventListener('click', () => {
+    $('#readerJumpForm').addEventListener('submit', e => {
+      e.preventDefault();
       updateGotoBounds();
       const value = Number(gotoValue.value), max = Number(gotoValue.max);
       if (!Number.isInteger(value) || value < 1 || value > max) { toast(`أدخل رقمًا من 1 إلى ${max}`); return; }
       const point = resolvePoint(gotoType.value, value, cur.surah);
+      if (point.page !== currentPage && !returnPoint) returnPoint = { s: cur.surah, a: cur.ayah, page: currentPage };
       open(point.s, point.a);
-      $('#readerTools').classList.add('hidden');
-      $('#btnReaderMenu').setAttribute('aria-expanded', 'false');
+      closeReadingTools(); updateReturnPoint();
     });
     $('#btnPlay').addEventListener('click', toggle);
     $('#btnRetryAudio').addEventListener('click', () => play({ restart: false }));
@@ -1111,6 +1292,15 @@ const Quran = (function () {
 
     document.addEventListener('keydown', e => {
       if ($('#quranReader').classList.contains('hidden')) return;
+      if (document.querySelector('.sheet')) return;
+      if (e.defaultPrevented) return;
+      if (e.key === 'Escape' && !$('#readerTools').classList.contains('hidden')) {
+        e.preventDefault(); closeReadingTools(true); return;
+      }
+      if (e.key === 'Escape' && document.body.classList.contains('reading-focus')) {
+        $('#btnReaderFocus').click(); $('#btnReaderFocus').focus(); return;
+      }
+      if (e.target.closest('[role="tablist"]')) return;
       if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
       if (e.key === 'ArrowRight') { e.preventDefault(); goPage(1); }
       if (e.key === 'ArrowLeft') { e.preventDefault(); goPage(-1); }
@@ -1123,6 +1313,7 @@ const Quran = (function () {
       const shouldResume = playing || pendingPlayback;
       persistPlaybackPosition();
       Store.set('reciter', rs.value);
+      updateReciterLabel();
       currentAudioKey = '';
       if (shouldResume) play({ restart: true });
       else setAudioState('idle', 'تم اختيار القارئ');

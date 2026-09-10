@@ -1,6 +1,8 @@
 /* ═══════════════ التطبيق: التنقّل، الرئيسية، الإعدادات ═══════════════ */
 (function () {
   let tickTimer = null, wakeLock = null, currentPushToken = '';
+  let locationTimer = null, locationRequest = 0;
+  const contentReady = { quran: false, adhkar: false };
 
   /* ───────── التنقّل ───────── */
   const TITLES = { home: 'مشكاة', quran: 'القرآن الكريم', adhkar: 'الأذكار', qibla: 'القبلة', library: 'المكتبة والختمة', settings: 'الإعدادات', tasbih: 'السبحة' };
@@ -8,11 +10,20 @@
   /* إدارة زر الرجوع في الجوال للشاشات الفرعية (القارئ / باب الأذكار) */
   const inSub = () => !!(history.state && history.state.sub);
   window.Nav = {
-    enter() { if (!inSub()) history.pushState({ sub: 1 }, ''); },
+    enter(sub = 'reader') {
+      if (history.state?.sub !== sub) history.pushState({ view: document.body.dataset.view, sub }, '');
+    },
     exit(close) { if (inSub()) history.back(); else close(); }
   };
 
-  function go(view) {
+  function go(view, restoring = false) {
+    view = TITLES[view] ? view : 'home';
+    const previous = document.body.dataset.view;
+    if (previous && previous !== view) {
+      if (Quran.isOpen) Quran.backToIndex();
+      if (Adhkar.isOpen) Adhkar.back();
+      if (!restoring && inSub()) history.replaceState({ view: previous }, '', '#' + previous);
+    }
     $$('.view').forEach(v => v.classList.toggle('on', v.id === 'view-' + view));
     $$('#tabbar button').forEach(b => {
       const current = b.dataset.view === view;
@@ -24,15 +35,25 @@
       ? '<span class="brand-lantern" aria-hidden="true"></span><span>مشكاة</span>'
       : `<span>${title}</span>`;
     $('#btnSettingsTop').classList.toggle('is-current', view === 'settings');
+    const settingsButton = $('#btnSettingsTop');
+    if (!settingsButton.dataset.originalIcon) settingsButton.dataset.originalIcon = settingsButton.innerHTML;
+    settingsButton.innerHTML = view === 'settings' ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="stroke" d="m10 6 6 6-6 6"/></svg>' : settingsButton.dataset.originalIcon;
+    settingsButton.setAttribute('aria-label', view === 'settings' ? 'العودة إلى الرئيسية' : 'فتح الإعدادات');
+    settingsButton.title = settingsButton.getAttribute('aria-label');
     document.body.dataset.view = view;
+    if (view === 'home') renderJourney();
     document.title = view === 'home'
       ? 'مشكاة — قرآن وأذكار وقبلة ومواقيت'
       : `${TITLES[view] || 'مشكاة'} — مشكاة`;
-    document.getElementById('app').scrollTop = 0;
+    const scroller = document.getElementById('app');
+    scroller.scrollTo({ top: 0, behavior: 'instant' });
     if (view === 'qibla') Qibla.init(); else Qibla.stop();   // إيقاف المستشعر خارج الشاشة
     if (view !== 'quran') Quran.stop();
     if (view === 'settings' && typeof Notify !== 'undefined') Notify.refreshPushStatus();
-    if (!inSub()) history.replaceState({ view }, '', '#' + view);
+    if (!restoring && previous !== view) {
+      if (previous) history.pushState({ view }, '', '#' + view);
+      else history.replaceState({ view }, '', '#' + view);
+    }
   }
 
   /* ───────── الرئيسية ───────── */
@@ -62,12 +83,14 @@
   }
 
   function renderHome() {
+    renderJourney();
     const now = new Date();
     $('#hijriDate').textContent = hijriDate(now, Store.s.hijriOffset);
     $('#gregDate').textContent = gregDate(now);
     $('#locText').textContent = Store.s.city || (coords() ? 'موقعك المحدَّد' : 'لم يتم تحديد الموقع');
     $('#homePlaceCompact').textContent = Store.s.city || (coords() ? 'موقعك المحدّد' : 'الموقع غير محدد');
     $('#setLoc').textContent = coords() ? (Store.s.city || 'موقع محدّد') : 'غير محدد';
+    $('#locationMode').textContent = Store.s.locationAuto ? 'تلقائي — يُحدّث عند العودة إلى التطبيق' : coords() ? 'مدينة محفوظة — التحديث التلقائي متوقف' : 'اختر مدينتك أو استخدم موقعك الحالي';
 
     const c = coords();
     $('#heroCard').classList.toggle('is-empty', !c);
@@ -94,7 +117,7 @@
     $('#prayerList').innerHTML = PrayerCalc.ORDER.map(p => {
       const isNext = info.next.key === p.key;
       const isCur = info.current && info.current.key === p.key;
-      const on = p.noAdhan ? null : Store.s.perPrayer[p.key];
+      const on = p.noAdhan ? null : Store.s.notif && Notify.perm() === 'granted' && Store.s.perPrayer[p.key];
       return `<div class="prayer ${isNext ? 'next' : ''} ${isCur ? 'cur' : ''}">
         <span class="p-icon">${prayerIcon(p.key)}</span>
         <span class="p-name">${p.ar}${isCur ? '<small>الوقت الحالي</small>' : ''}</span>
@@ -112,6 +135,20 @@
 
     if (t.__approx) toastOnce('في موقعك لا يغيب الشفق تماماً في هذا الوقت من السنة — تم تقدير الفجر والعشاء بقاعدة «' + hlName() + '».');
     tick();
+  }
+  // Read-only shortcuts: reuse the existing reading position and khatma API.
+  function renderJourney() {
+    const root = $('#homeJourney');
+    if (!root) return;
+    const lr = Store.s.lastRead;
+    const plan = Khatma.getActive();
+    root.innerHTML = `<button type="button" class="journey" data-journey="read">
+      <span class="journey-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5c-3-2-6-2-9-1v15c3-1 6-1 9 1 3-2 6-2 9-1V4c-3-1-6-1-9 1Zm0 0v15"/></svg></span>
+      <span><b>${lr ? 'تابع من حيث توقفت' : 'ابدأ رحلتك مع القرآن'}</b><small id="homeReadingMeta"></small></span><span aria-hidden="true">‹</span></button>
+      <button type="button" class="journey" data-journey="khatma"><span class="journey-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 3h14v18l-7-4-7 4Z"/><path d="m8 9 3 3 5-5"/></svg></span><span><b>${plan ? 'ورد ختمتك' : 'خطّط لختمتك'}</b><small id="homeKhatmaMeta"></small></span><span aria-hidden="true">‹</span></button>`;
+    const chapter = Quran.data?.surahs?.[Number(lr?.s) - 1];
+    $('#homeReadingMeta').textContent = lr ? `${chapter?.name || 'القرآن الكريم'} · صفحة ${toAr(lr.page || 1)}` : 'صفحات المصحف، مع التلاوة والعلامات';
+    $('#homeKhatmaMeta').textContent = plan ? `${plan.name} · وصلت إلى الصفحة ${toAr(plan.progressPage)}` : 'ورد يناسب وقتك، وتقدّم محفوظ';
   }
   function hlName() {
     return { NightMiddle: 'منتصف الليل', AngleBased: 'حسب الزاوية', OneSeventh: 'سُبع الليل', None: 'بدون تعديل' }[Store.s.highLats];
@@ -139,22 +176,49 @@
   }
 
   /* ───────── الموقع ───────── */
-  function autoLocate() {
-    toast('جارٍ تحديد موقعك…');
-    if (window.__MISHKAT_NATIVE__) { window.__locAsked = true; MishkatNative.requestLocation(); return; }
-    if (!navigator.geolocation) { toast('تحديد الموقع غير مدعوم'); return; }
+  function locationState(text, busy = false, error = false) {
+    const status = $('#locationStatus');
+    status.textContent = text; status.hidden = !text;
+    status.classList.toggle('is-error', error);
+    const button = $('#btnAutoLoc');
+    button.disabled = busy;
+    button.setAttribute('aria-busy', String(busy));
+    button.textContent = busy ? 'جارٍ تحديد موقعك…' : 'استخدام موقعي الحالي';
+  }
+
+  function locationFailed(denied, explicit = true) {
+    clearTimeout(locationTimer);
+    const onboarding = !!window.__onboardingFlow;
+    window.__locAsked = false; window.__onboardingFlow = false;
+    if (explicit) {
+      locationState(denied ? 'إذن الموقع متوقف. اسمح به من إعدادات الجهاز، أو اختر مدينتك أدناه.' : 'تعذّر تحديد موقعك الآن. أعد المحاولة أو اختر مدينة.', false, true);
+      go('settings');
+    }
+    if (onboarding) setTimeout(showNotificationStep, 520);
+  }
+
+  function autoLocate(silent = false) {
+    silent = silent === true;
+    if (window.__locAsked) return;
+    const requestID = ++locationRequest;
+    if (!silent) {
+      window.__locAsked = true;
+      locationState('نبحث عن موقعك الحالي…', true);
+      locationTimer = setTimeout(() => { locationRequest++; locationFailed(false); }, 20000);
+    }
+    if (window.__MISHKAT_NATIVE__) { MishkatNative.requestLocation(); return; }
+    if (!navigator.geolocation) { locationFailed(false, !silent); return; }
     navigator.geolocation.getCurrentPosition(
       pos => {
+        if (requestID !== locationRequest) return;
+        clearTimeout(locationTimer); window.__locAsked = false;
         Store.set('locationAuto', true);
-        applyLocation(pos.coords.latitude, pos.coords.longitude);
+        applyLocation(pos.coords.latitude, pos.coords.longitude, '', silent);
+        locationState('تم تحديث الموقع والمواقيت.');
         if (window.__onboardingFlow) { window.__onboardingFlow = false; setTimeout(showNotificationStep, 420); }
       },
       err => {
-        const onboarding = !!window.__onboardingFlow;
-        window.__onboardingFlow = false;
-        toast(err.code === 1 ? 'رُفض إذن الموقع — أدخله يدوياً من الإعدادات' : 'تعذّر تحديد الموقع، أدخله يدوياً');
-        go('settings');
-        if (onboarding) setTimeout(showNotificationStep, 520);
+        if (requestID === locationRequest) locationFailed(err.code === 1, !silent);
       }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 300000 });
   }
 
@@ -175,7 +239,7 @@
       <span class="eyebrow">${eyebrow}</span>
       <h2 id="welcomeTitle">${title}</h2>
       <p>${body}</p>
-      <div class="welcome-privacy"><span class="privacy-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.6 2.7 8.1 7 10 4.3-1.9 7-5.4 7-10V6l-7-3Z"/><path d="m9.2 12 1.8 1.8 3.9-4.1"/></svg></span><span>تُعالج بياناتك على جهازك ولا نرسل موقعك إلى خادم.</span></div>
+      <div class="welcome-privacy"><span class="privacy-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.6 2.7 8.1 7 10 4.3-1.9 7-5.4 7-10V6l-7-3Z"/><path d="m9.2 12 1.8 1.8 3.9-4.1"/></svg></span><span>تُحسب المواقيت والقبلة على جهازك، ويُستخدم نظام الجهاز للتعرّف على اسم المنطقة.</span></div>
       <button class="btn primary" data-welcome="primary">${primary}</button>
       <button class="btn ghost" data-welcome="secondary">${secondary}</button>
     </div>`;
@@ -190,7 +254,7 @@
     welcomeSheet({
       eyebrow: 'الخطوة الثانية',
       title: 'هل تريد تذكيرًا عند الصلاة؟',
-      body: 'يصلك إشعار نظامي في موعد الصلاة. صوت الأذان قصير ويمكن إسكاته من أزرار الصوت.',
+      body: 'يصلك إشعار في موعد الصلاة. في تطبيق iPhone يكون صوت الأذان القصير جزءًا من إشعار النظام، وليس مقطعًا مستمرًا.',
       primary: 'السماح بالتنبيهات', secondary: 'ليس الآن',
       onPrimary: async () => {
         Store.set('notificationPromptSeen', true);
@@ -225,13 +289,14 @@
    * @param {string} [placeName] اسم من نظام التشغيل (CLGeocoder) — أدقّ ما يمكن
    */
   function applyLocation(lat, lng, placeName, silent = false) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
     Store.set('lat', +lat.toFixed(4)); Store.set('lng', +lng.toFixed(4));
     const guess = nearestPlace(lat, lng);
-    if (placeName) Store.set('city', placeName);
-    else if (guess) Store.set('city', guess[0]);
+    Store.set('city', placeName || (guess ? guess[0] : 'موقعك الحالي'));
     if (guess && !Store.s._methodSet) { Store.set('method', guess[3]); $('#selMethod').value = guess[3]; }
     $('#inLat').value = Store.s.lat; $('#inLng').value = Store.s.lng; $('#inCity').value = Store.s.city;
     Qibla.setLocation(Store.s.lat, Store.s.lng);
+    if (document.body.dataset.view === 'qibla') Qibla.init();
     renderHome(); Notify.schedule();
     if (!silent) toast('تم تحديد الموقع: ' + (Store.s.city || 'موقعك'));
   }
@@ -240,9 +305,12 @@
   // الموقع الأصلي: يُحدَّث تلقائياً مع كل قراءة حديثة، مع إبقاء رسالة النجاح للطلب الصريح فقط.
   window.addEventListener('mishkat-location', e => {
     const explicit = !!window.__locAsked;
+    if (!explicit && !Store.s.locationAuto) return;
+    clearTimeout(locationTimer);
     window.__locAsked = false;
     Store.set('locationAuto', true);
     applyLocation(e.detail.lat, e.detail.lng, e.detail.name || '', !explicit);
+    if (explicit) locationState('تم تحديث الموقع والمواقيت.');
     if (window.__onboardingFlow) {
       window.__onboardingFlow = false;
       setTimeout(showNotificationStep, 420);
@@ -252,7 +320,7 @@
   // شرط: أن يكون اسماً للموقع المعروض فعلاً، لا لموقع لم يُطبَّق.
   window.addEventListener('mishkat-place', e => {
     const d = e.detail || {}, name = (d.name || '').trim();
-    if (!name || name === Store.s.city || Store.s.lat == null) return;
+    if (!Store.s.locationAuto || !name || name === Store.s.city || Store.s.lat == null) return;
     if (d.lat != null && (Math.abs(d.lat - Store.s.lat) > 0.05 || Math.abs(d.lng - Store.s.lng) > 0.05)) return;
     Store.set('city', name);
     $('#inCity').value = name;
@@ -260,16 +328,10 @@
     const qp = $('#qPlace'); if (qp) qp.textContent = name;
   });
   window.addEventListener('mishkat-location-error', e => {
-    const onboarding = !!window.__onboardingFlow;
-    const explicit = !!window.__locAsked || onboarding;
-    window.__locAsked = false;
-    window.__onboardingFlow = false;
-    toast(e.detail?.reason === 'denied' ? 'إذن الموقع متوقف — يمكنك اختيار مدينة يدويًا' : 'تعذّر تحديث الموقع الآن');
-    if (explicit) go('settings');
-    if (onboarding) setTimeout(showNotificationStep, 520);
+    locationFailed(e.detail?.reason === 'denied', !!window.__locAsked || !!window.__onboardingFlow);
   });
 
-  /** أقرب مدينة (٢٠٠ كم)، فإن لم توجد فأقرب محافظة/منطقة (٤٥٠ كم) */
+  /** أقرب مدينة (٣٥ كم)، فإن لم توجد فأقرب محافظة/منطقة (٤٥٠ كم). تقدير محلي لا حدود إدارية. */
   function nearestPlace(lat, lng) {
     const nearest = list => {
       let best = null, bd = 1e9;
@@ -282,16 +344,18 @@
       return [best, Math.sqrt(bd) * 111];        // المسافة بالكيلومترات تقريباً
     };
     const [city, dCity] = nearest(CITIES);
-    if (dCity <= 200) return city;
+    if (dCity <= 35) return city;
     const [region, dRegion] = nearest(REGIONS);
     if (dRegion <= 450) return region;
-    return dCity <= 700 ? city : null;           // مدينة بعيدة خير من إحداثيات مجرّدة
+    return null; // اسم مدينة بعيدة يوحي خطأً بأن الموقع دقيق.
   }
 
   /* ───────── السبحة ───────── */
   function initTasbih() {
     const btn = $('#counterBtn'), val = $('#counterVal');
-    let n = 0;
+    let n = Math.max(0, Number(Store.s.tasbihSession) || 0);
+    $('#tasbihTarget').value = String(Store.s.tasbihTarget || 0);
+    if (Store.s.tasbihPhrase) $('#tasbihPhrase').value = Store.s.tasbihPhrase;
     const render = () => {
       val.textContent = toAr(n);
       $('#tasbihTotal').textContent = toAr(Store.s.tasbihTotal);
@@ -300,13 +364,15 @@
     };
     btn.addEventListener('click', () => {
       n++; Store.set('tasbihTotal', Store.s.tasbihTotal + 1);
+      Store.set('tasbihSession', n);
       const target = +$('#tasbihTarget').value;
       vibrate(target > 0 && n === target ? [40, 60, 40, 60, 90] : 15);
       if (target > 0 && n === target) toast('اكتمل العدد ✓');
       render();
     });
-    $('#tasbihReset').addEventListener('click', () => { n = 0; render(); });
-    $('#tasbihTarget').addEventListener('change', render);
+    $('#tasbihReset').addEventListener('click', () => { n = 0; Store.set('tasbihSession', 0); render(); toast('بدأ عدّ جديد'); });
+    $('#tasbihTarget').addEventListener('change', e => { Store.set('tasbihTarget', +e.target.value); render(); });
+    $('#tasbihPhrase').addEventListener('change', e => Store.set('tasbihPhrase', e.target.value));
     $('#tasbihVibe').addEventListener('click', e => {
       Store.set('vibrate', !Store.s.vibrate);
       e.target.textContent = 'اهتزاز: ' + (Store.s.vibrate ? 'تشغيل' : 'إيقاف');
@@ -322,7 +388,7 @@
       root: '#khatmaRoot',
       notify: toast,
       resolvePoint: (kind, value, contextSurah) => Quran.resolvePoint(kind, value, contextSurah),
-      onContinue: page => { go('quran'); Quran.openPage(page); },
+      onContinue: page => { go('quran'); if (contentReady.quran) Quran.openPage(page); },
       onChange: () => Notify.schedule()
     });
     $('#toolsSeg').addEventListener('click', e => {
@@ -344,7 +410,7 @@
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
     document.documentElement.dataset.font = ['large', 'xlarge'].includes(Store.s.uiFont) ? Store.s.uiFont : 'normal';
     const meta = document.querySelector('meta[name=theme-color]');
-    if (meta) meta.content = dark ? '#0d3b32' : '#0d3b32';
+    if (meta) meta.content = dark ? '#081510' : '#f6f1e8';
   }
 
   async function keepAwake(on) {
@@ -490,18 +556,26 @@
     $('#btnAutoLoc').addEventListener('click', autoLocate);
     $('#btnSaveLoc').addEventListener('click', () => {
       const lat = parseFloat($('#inLat').value), lng = parseFloat($('#inLng').value);
-      if (isNaN(lat) || isNaN(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) { toast('إحداثيات غير صحيحة'); return; }
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+        locationState('أدخل خط عرض بين ‎-90 و90، وخط طول بين ‎-180 و180.', false, true);
+        $('#inLat').focus(); return;
+      }
+      locationRequest++; clearTimeout(locationTimer); window.__locAsked = false;
       Store.set('lat', lat); Store.set('lng', lng); Store.set('city', $('#inCity').value.trim());
       Store.set('locationAuto', false);
+      locationState('تم حفظ الموقع. سيبقى ثابتًا حتى تختار تحديثه.');
       Qibla.setLocation(lat, lng); renderHome(); Notify.schedule(); toast('تم حفظ الموقع');
     });
     const cs = $('#citySel');
     cs.innerHTML = '<option value="">— اختر مدينة —</option>' + CITIES.map((c, i) => `<option value="${i}">${c[0]}</option>`).join('');
     cs.addEventListener('change', () => {
+      if (cs.value === '') return;
       const c = CITIES[+cs.value]; if (!c) return;
+      locationRequest++; clearTimeout(locationTimer); window.__locAsked = false;
       Store.set('lat', c[1]); Store.set('lng', c[2]); Store.set('city', c[0]); Store.set('method', c[3]);
       Store.set('_methodSet', false);
       Store.set('locationAuto', false);
+      locationState('تم حفظ المدينة وتحديث المواقيت.');
       $('#inLat').value = c[1]; $('#inLng').value = c[2]; $('#inCity').value = c[0]; ms.value = c[3];
       Qibla.setLocation(c[1], c[2]); renderHome(); Notify.schedule(); toast('تم اختيار ' + c[0]);
     });
@@ -511,6 +585,7 @@
     $('#swNotif').addEventListener('change', async e => {
       if (e.target.checked && Notify.perm() !== 'granted') { const p = await Notify.request(); if (p !== 'granted') { e.target.checked = false; return; } }
       Store.set('notif', e.target.checked); Notify.schedule(); Notify.refreshUI();
+      renderHome();
       if (e.target.checked) Notify.enablePeriodic();
     });
     $('#swAdhan').checked = s.adhanSound;
@@ -549,18 +624,21 @@
     $('#swKeepAwake').checked = s.keepAwake;
     $('#swKeepAwake').addEventListener('change', e => { Store.set('keepAwake', e.target.checked); keepAwake(e.target.checked); });
 
-    $('#btnPrecache').addEventListener('click', async () => {
-      toast('جارٍ التجهيز…');
+    $('#btnPrecache').addEventListener('click', async event => {
+      const button = event.currentTarget;
+      button.disabled = true; button.setAttribute('aria-busy', 'true');
       try {
-        if (navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage({ type: 'precache' });
-        await Promise.all([fetch('data/quran.json'), fetch('data/adhkar.json')]);
-        setTimeout(() => { toast('التطبيق جاهز للعمل بدون إنترنت ✓'); updateOfflineState(); }, 1200);
-      } catch (e) { toast('تعذّر التجهيز'); }
+        await offlineMessage('precache', progress => { $('#offlineState').textContent = `حفظ صفحات المصحف: ${progress.done} من ${progress.total}`; });
+        toast('اكتمل حفظ المصحف والأذكار');
+        await updateOfflineState();
+      } catch (e) { $('#offlineState').textContent = 'لم يكتمل الحفظ. تحقق من الاتصال والمساحة ثم أعد المحاولة؛ الصفحات المحفوظة باقية.'; }
+      finally { button.disabled = false; button.setAttribute('aria-busy', 'false'); }
     });
     $('#btnClear').addEventListener('click', async () => {
-      if (!confirm('سيتم مسح الإعدادات والعلامات وتقدّم الأذكار. متابعة؟')) return;
-      localStorage.clear();
-      if ('caches' in window) for (const k of await caches.keys()) await caches.delete(k);
+      if (!confirm('سيتم مسح إعدادات مشكاة والأدعية والعلامات والملاحظات والختمات والكتب المحفوظة. هل تريد المتابعة؟')) return;
+      Store.set('notif', false); Notify.schedule();
+      Object.keys(localStorage).filter(k => /^(mishkat[.\-]|noor[.\-])/.test(k)).forEach(k => localStorage.removeItem(k));
+      if ('caches' in window) for (const k of await caches.keys()) if (k.startsWith('mishkat-')) await caches.delete(k);
       location.reload();
     });
     initPushService();
@@ -569,12 +647,33 @@
 
   async function updateOfflineState() {
     const el = $('#offlineState'); if (!el) return;
-    if (!('caches' in window)) { el.textContent = 'غير مدعوم'; return; }
+    if (window.__MISHKAT_NATIVE__) {
+      el.textContent = 'المصحف كاملًا والأذكار مرفقة على جهازك.';
+      $('#btnPrecache').hidden = true;
+      return;
+    }
     try {
-      const c = await caches.open('mishkat-v12');
-      const has = await c.match('data/quran.json');
-      el.textContent = has ? 'جاهز ✓ (المصحف والأذكار محفوظة)' : 'غير مكتمل — اضغط «تجهيز»';
-    } catch (e) { el.textContent = '—'; }
+      const status = await offlineMessage('offline-status');
+      el.textContent = status.complete ? 'جاهز — 604 صفحات مع الأذكار محفوظة.' : `${status.pages} من 604 صفحات محفوظة. جهّز البقية قبل انقطاع الاتصال.`;
+    } catch (e) { el.textContent = 'الحفظ الكامل غير جاهز. اتصل بالإنترنت وأعد فتح التطبيق ثم اختر تجهيز.'; }
+  }
+
+  async function offlineMessage(type, onProgress) {
+    if (!navigator.serviceWorker) throw new Error('unsupported');
+    const registration = await navigator.serviceWorker.getRegistration();
+    const worker = navigator.serviceWorker.controller || registration?.active;
+    if (!worker) throw new Error('worker unavailable');
+    return new Promise((resolve, reject) => {
+      const channel = new MessageChannel();
+      let timer;
+      const finish = (error, data) => { clearTimeout(timer); channel.port1.close(); error ? reject(error) : resolve(data); };
+      const heartbeat = () => { clearTimeout(timer); timer = setTimeout(() => finish(new Error('timeout')), 30000); };
+      channel.port1.onmessage = ({data}) => {
+        if (data.progress) { heartbeat(); onProgress?.(data); }
+        else finish(data.error ? new Error(data.error) : null, data);
+      };
+      heartbeat(); worker.postMessage({type}, [channel.port2]);
+    });
   }
 
   function updateConnectivity() {
@@ -587,6 +686,7 @@
 
   function initAccessibility() {
     const returnFocus = new Map();
+    const modalBackground = $$('.skip-link,#topbar,#connectivityBanner,#app,#tabbar');
     const focusables = root => Array.from(root.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href],summary,[tabindex]:not([tabindex="-1"])'))
       .filter(el => !el.hidden && el.getClientRects().length);
     const setupSheet = sheet => {
@@ -612,19 +712,25 @@
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
       });
     };
-    new MutationObserver(records => records.forEach(record => {
-      record.addedNodes.forEach(node => {
-        if (!(node instanceof Element)) return;
-        if (node.matches('.sheet')) setupSheet(node);
-        node.querySelectorAll?.('.sheet').forEach(setupSheet);
+    new MutationObserver(records => {
+      let restoreFocus = null;
+      records.forEach(record => {
+        record.addedNodes.forEach(node => {
+          if (!(node instanceof Element)) return;
+          if (node.matches('.sheet')) setupSheet(node);
+          node.querySelectorAll?.('.sheet').forEach(setupSheet);
+        });
+        record.removedNodes.forEach(node => {
+          if (!(node instanceof Element) || !node.matches('.sheet')) return;
+          const previous = returnFocus.get(node);
+          if (previous && document.contains(previous)) restoreFocus = previous;
+          returnFocus.delete(node);
+        });
       });
-      record.removedNodes.forEach(node => {
-        if (!(node instanceof Element) || !node.matches('.sheet')) return;
-        const previous = returnFocus.get(node);
-        if (previous && document.contains(previous)) previous.focus();
-        returnFocus.delete(node);
-      });
-    })).observe(document.body, { childList: true });
+      const modalOpen = !!document.querySelector('.sheet');
+      modalBackground.forEach(element => { element.inert = modalOpen; });
+      if (!modalOpen && restoreFocus) restoreFocus.focus({ preventScroll: true });
+    }).observe(document.body, { childList: true });
 
     document.addEventListener('keydown', event => {
       const tab = event.target.closest?.('[role="tab"]');
@@ -642,6 +748,33 @@
   }
 
   /* ───────── الإقلاع ───────── */
+  async function loadContent(kind) {
+    const module = kind === 'quran' ? Quran : Adhkar;
+    const index = $('#' + (kind === 'quran' ? 'quranIndex' : 'adhkarIndex'));
+    let status = $(`#view-${kind} .content-state`);
+    try {
+      await module.load();
+      module.renderIndex(); module.bind();
+      contentReady[kind] = true;
+      index.classList.remove('hidden'); status?.remove();
+    } catch (error) {
+      index.classList.add('hidden');
+      if (!status) {
+        status = document.createElement('div');
+        status.className = 'content-state'; status.setAttribute('role', 'status');
+        status.innerHTML = `<h2>تعذّر تحميل ${kind === 'quran' ? 'المصحف' : 'الأذكار'}</h2><p>تحقق من الاتصال ثم أعد المحاولة. يمكنك استخدام بقية أقسام مشكاة.</p><button class="btn primary">إعادة المحاولة</button>`;
+        $(`#view-${kind}`).appendChild(status);
+        status.querySelector('button').addEventListener('click', async event => {
+          event.currentTarget.disabled = true; event.currentTarget.textContent = 'جارٍ التحميل…';
+          await loadContent(kind);
+        });
+      }
+      const retry = status.querySelector('button');
+      retry.disabled = false; retry.textContent = 'إعادة المحاولة';
+      console.warn('تعذّر تحميل ' + kind, error);
+    }
+  }
+
   async function boot() {
     applyTheme();
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
@@ -649,46 +782,69 @@
     updateConnectivity();
     window.addEventListener('online', () => { updateConnectivity(); toast('عاد الاتصال بالإنترنت'); });
     window.addEventListener('offline', updateConnectivity);
+    navigator.serviceWorker?.addEventListener('controllerchange', updateOfflineState);
 
     $('#splashNote').textContent = 'جارٍ تحميل المصحف والأذكار…';
-    try {
-      await Promise.all([Quran.load(), Adhkar.load()]);
-    } catch (e) {
-      $('#splashNote').textContent = 'تعذّر تحميل البيانات. تأكد من تشغيل التطبيق عبر خادم محلي وليس بفتح الملف مباشرة.';
-      return;
-    }
+    await Promise.allSettled([loadContent('quran'), loadContent('adhkar')]);
     // كل قسم مستقل: عطل في أحدها لا يمنع بقية التطبيق من العمل
-    [['المصحف', () => { Quran.renderIndex(); Quran.bind(); }],
-     ['الأذكار', () => { Adhkar.renderIndex(); Adhkar.bind(); }],
-     ['المكتبة والختمة', initLibraryTools],
+    [['المكتبة والختمة', initLibraryTools],
      ['الإعدادات', initSettings],
-     ['السبحة', initTasbih],
-     ['القبلة', Qibla.init]].forEach(([name, fn]) => {
+     ['السبحة', initTasbih]].forEach(([name, fn]) => {
       try { fn(); } catch (e) { console.error('تعذّر تهيئة ' + name, e); }
     });
 
     $$('#tabbar button').forEach(b => b.addEventListener('click', () => go(b.dataset.view)));
-    $('#btnSettingsTop').addEventListener('click', () => go('settings'));
+    $('#btnSettingsTop').addEventListener('click', () => {
+      if (document.body.dataset.view === 'settings') go('home'); else go('settings');
+    });
+    $('#homeJourney').addEventListener('click', e => {
+      const button = e.target.closest('[data-journey]'); if (!button) return;
+      if (button.dataset.journey === 'read') {
+        go('quran');
+        if (contentReady.quran) Quran.open(Store.s.lastRead?.s || 1, Store.s.lastRead?.a || 1);
+      } else {
+        go('library'); $('#toolsSeg [data-tools-tab="khatma"]').click();
+        const plan = Khatma.getActive(); if (plan) Khatma.open(plan.id);
+      }
+    });
+    // All quick actions use the same stroke icons as their destination.
+    $$('.quick').forEach(button => {
+      const kind = button.dataset.goto;
+      const key = button.dataset.period === 'evening' ? 'isha' : kind === 'adhkar:1' ? 'sunrise' : kind === 'adhkar:27' ? 'dhuhr' : null;
+      const icon = key ? prayerIcon(key) : $(`#tabbar [data-view="${kind.startsWith('quran') ? 'quran' : 'adhkar'}"] svg`).outerHTML;
+      button.querySelector('.quick-symbol').innerHTML = icon;
+    });
     $('#locLabel').addEventListener('click', () => go('settings'));
-    $('#btnPrayerSettings').addEventListener('click', () => go('settings'));
+    $('#btnPrayerSettings').addEventListener('click', () => {
+      go('settings');
+      const section = $('#calculationSettings'); section.open = true;
+      section.scrollIntoView({ block: 'start', behavior: 'instant' });
+      section.querySelector('summary').focus({ preventScroll: true });
+    });
     $('#btnTheme').addEventListener('click', () => {
       const order = ['auto', 'light', 'dark'], i = order.indexOf(Store.s.theme);
       Store.set('theme', order[(i + 1) % 3]); $('#selTheme').value = Store.s.theme; applyTheme();
       toast('المظهر: ' + { auto: 'حسب النظام', light: 'فاتح', dark: 'داكن' }[Store.s.theme]);
     });
 
-    $('#prayerList').addEventListener('click', e => {
+    $('#prayerList').addEventListener('click', async e => {
       const b = e.target.closest('[data-bell]'); if (!b) return;
       const k = b.dataset.bell;
-      Store.s.perPrayer[k] = !Store.s.perPrayer[k]; Store.save();
+      const active = Store.s.notif && Notify.perm() === 'granted' && Store.s.perPrayer[k];
+      if (!active && Notify.perm() !== 'granted') {
+        b.disabled = true;
+        if (await Notify.request() !== 'granted') { renderHome(); return; }
+      }
+      if (!active) Store.set('notif', true);
+      Store.s.perPrayer[k] = !active; Store.save();
       renderHome(); Notify.schedule();
       toast((Store.s.perPrayer[k] ? 'تم تفعيل' : 'تم إيقاف') + ' تنبيه ' + PrayerCalc.ORDER.find(p => p.key === k).ar);
     });
     $('.quick-grid').addEventListener('click', e => {
       const b = e.target.closest('[data-goto]'); if (!b) return;
       const [kind, id] = b.dataset.goto.split(':');
-      if (kind === 'quran') { go('quran'); Quran.open(+id); }
-      else if (kind === 'adhkar') { go('adhkar'); Adhkar.open(+id); }
+      if (kind === 'quran') { go('quran'); if (contentReady.quran) Quran.open(+id); }
+      else if (kind === 'adhkar') { go('adhkar'); if (contentReady.adhkar) Adhkar.open(+id); }
       else go('tasbih');
     });
     $('#btnEnableNotif').addEventListener('click', async () => {
@@ -700,24 +856,30 @@
     // أزرار القبلة تُنشأ ديناميكياً حسب الحالة داخل Qibla.refreshUI
 
     // زر الرجوع في الجوال
-    window.addEventListener('popstate', () => {
-      if (Quran.isOpen) Quran.backToIndex();
-      else if (Adhkar.isOpen) Adhkar.back();
-      else go('home');
+    window.addEventListener('popstate', event => {
+      const view = event.state?.view || (location.hash || '#home').slice(1);
+      go(view, true);
+      if (!event.state?.sub) {
+        if (Quran.isOpen) Quran.backToIndex();
+        if (Adhkar.isOpen) Adhkar.back();
+      } else if (event.state.sub === 'reader' && Adhkar.isEditing) Adhkar.closeEditor();
     });
+    window.addEventListener('mishkat-permission-changed', renderHome);
     document.addEventListener('click', Notify.prime, { once: true });
     document.addEventListener('touchstart', Notify.prime, { once: true });
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) {
         renderHome(); Notify.schedule();
         if (Store.s.keepAwake) keepAwake(true);
-        if (window.__MISHKAT_NATIVE__ && Store.s.locationAuto) MishkatNative.requestLocation();
-      }
+        Notify.refreshPushStatus();
+        if (Store.s.locationAuto) autoLocate(true);
+        if (document.body.dataset.view === 'qibla') Qibla.init();
+      } else Qibla.stop();
     });
 
     renderHome();
-    Notify.refreshUI(); Notify.schedule(); Notify.syncWidget();
-    if (window.__MISHKAT_NATIVE__ && Store.s.locationAuto) MishkatNative.requestLocation();
+    Notify.refreshUI(); Notify.refreshPushStatus(); Notify.schedule(); Notify.syncWidget();
+    if (Store.s.locationAuto) autoLocate(true);
     if (Store.s.keepAwake) keepAwake(true);
     tickTimer = setInterval(tick, 1000);
 

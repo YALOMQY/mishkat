@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="مشكاة">
-<link rel="stylesheet" href="styles.css?v=12">
+<link rel="stylesheet" href="styles.css?v=17">
 </head>
 <body>
 
@@ -47,40 +47,36 @@
   <!-- ═══════════ الرئيسية ═══════════ -->
   <section class="view" id="view-home">
     <div class="today-intro">
-      <div><span class="eyebrow">يومك مع مشكاة</span><h1>الصلاة أقرب</h1></div>
+      <div><h1>صلاتك ووردك</h1></div>
       <span class="today-place" id="homePlaceCompact">الموقع غير محدد</span>
     </div>
+    <div class="home-calendar"><div class="hijri" id="hijriDate">—</div><div class="greg" id="gregDate">—</div></div>
 
-    <div class="hero mihrab-panel" id="heroCard" aria-labelledby="nextLabel">
-      <span class="mihrab-line" aria-hidden="true"></span>
-      <div class="hero-dates">
-        <div class="hijri" id="hijriDate">—</div>
-        <div class="greg" id="gregDate">—</div>
-      </div>
+    <div class="hero" id="heroCard" aria-labelledby="nextLabel">
       <div class="hero-next">
-        <div class="next-label" id="nextLabel">الصلاة القادمة</div>
-        <div class="next-name" id="nextName">—</div>
-        <div class="next-count" id="nextCountdown" role="timer" aria-live="off">--:--:--</div>
-        <div class="next-at" id="nextAt"></div>
+        <div class="hero-prayer"><div class="next-label" id="nextLabel">الصلاة القادمة</div><div class="next-name" id="nextName">—</div><div class="next-at" id="nextAt"></div></div>
+        <div class="hero-remaining"><span class="next-label">الوقت المتبقي</span><div class="next-count" id="nextCountdown" role="timer" aria-live="off">--:--:--</div></div>
       </div>
       <button class="hero-loc" id="locLabel" type="button" aria-label="عرض إعدادات الموقع">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s6-5.7 6-11a6 6 0 1 0-12 0c0 5.3 6 11 6 11Z"/><circle cx="12" cy="10" r="2.2"/></svg><span id="locText">لم يتم تحديد الموقع</span>
       </button>
-      <div class="hero-ring" aria-hidden="true"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="54" class="ring-bg"/><circle cx="60" cy="60" r="54" class="ring-fg" id="ringFg"/></svg></div>
     </div>
 
-    <div class="section-heading"><div><span class="eyebrow">من الفجر إلى العشاء</span><h2>صلوات اليوم</h2></div><button class="text-action" id="btnPrayerSettings" type="button">ضبط المواقيت</button></div>
+    <div class="section-heading"><h2>مواقيت اليوم</h2><button class="text-action" id="btnPrayerSettings" type="button">ضبط المواقيت</button></div>
     <div class="prayer-list prayer-timeline" id="prayerList"></div>
 
-    <div class="night-card" id="nightCard">
-      <div class="section-heading compact"><div><span class="eyebrow">أوقات إضافية</span><h2>قيام الليل</h2></div></div>
+    <div class="section-heading"><h2>وردك اليوم</h2><span class="muted small">قليلٌ يدوم</span></div>
+    <div id="homeJourney" class="journey-list"></div>
+
+    <details class="night-card disclosure" id="nightCard">
+      <summary><span><b>قيام الليل والإمساك</b><small>منتصف الليل، الثلث الأخير والشروق</small></span></summary>
       <div class="night-grid">
         <div><span>منتصف الليل</span><b id="tMidnight">—</b></div>
         <div><span>الثلث الأخير</span><b id="tLastThird">—</b></div>
         <div><span>الإمساك</span><b id="tImsak">—</b></div>
         <div><span>الشروق</span><b id="tSunriseB">—</b></div>
       </div>
-    </div>
+    </details>
 
     <div class="notif-card action-panel" id="notifCard">
       <div class="action-symbol" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z"/><path d="M10 21h4"/></svg></div>
@@ -92,10 +88,10 @@
     </div>
 
     <div class="quick-card">
-      <div class="section-heading compact"><div><span class="eyebrow">خطوة صغيرة مستمرة</span><h2>ورد سريع</h2></div></div>
+      <div class="section-heading compact"><h2>أذكار وقراءات</h2></div>
       <div class="quick-grid">
         <button class="quick" data-goto="adhkar:1"><b class="quick-symbol">ص</b><span>أذكار الصباح</span><i>ورد اليوم</i></button>
-        <button class="quick" data-goto="adhkar:2"><b class="quick-symbol">م</b><span>أذكار المساء</span><i>سكينة المساء</i></button>
+        <button class="quick" data-goto="adhkar:1" data-period="evening"><b class="quick-symbol">م</b><span>أذكار المساء</span><i>سكينة المساء</i></button>
         <button class="quick" data-goto="adhkar:27"><b class="quick-symbol">صـ</b><span>بعد الصلاة</span><i>ذكر مختصر</i></button>
         <button class="quick" data-goto="quran:18"><b class="quick-symbol">18</b><span>سورة الكهف</span><i>قراءة الجمعة</i></button>
         <button class="quick" data-goto="quran:36"><b class="quick-symbol">36</b><span>سورة يس</span><i>افتح المصحف</i></button>
@@ -108,19 +104,22 @@
   <section class="view" id="view-quran">
     <div id="quranIndex">
       <div class="screen-intro">
-        <span class="eyebrow">مصحف حفص عن عاصم</span>
+        <span class="eyebrow">مصحف المدينة · حفص عن عاصم</span>
         <h1>القرآن الكريم</h1>
-        <p>تابع وردك، أو افتح سورة من الفهرس.</p>
+        <p>موضعك محفوظ، وصفحتك أقرب.</p>
       </div>
-      <div class="search-wrap">
-        <input type="search" id="surahSearch" placeholder="ابحث عن سورة أو آية…" aria-label="البحث عن سورة أو آية" autocomplete="off">
+      <div id="lastReadBox"></div>
+      <div class="search-wrap quran-search">
+        <input type="search" id="surahSearch" placeholder="اسم السورة، رقمها، أو كلمات من آية" aria-label="البحث عن سورة أو آية" autocomplete="off">
+        <button type="button" id="btnClearQuranSearch" class="icon-btn hidden" aria-label="مسح البحث"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="stroke" d="m7 7 10 10M17 7 7 17"/></svg></button>
       </div>
+      <details class="disclosure quran-index-jump"><summary>انتقال إلى صفحة<span>1–604</span></summary><form id="indexPageForm"><label for="indexPageNumber">رقم الصفحة</label><div><input id="indexPageNumber" type="number" inputmode="numeric" min="1" max="604" required placeholder="مثل: 262"><button type="submit" class="btn primary">افتح الصفحة</button></div></form></details>
       <div class="seg" id="quranSeg" role="tablist" aria-label="فهرس القرآن">
         <button class="on" data-mode="surah" role="tab" aria-selected="true">السور</button>
         <button data-mode="juz" role="tab" aria-selected="false">الأجزاء</button>
         <button data-mode="marks" role="tab" aria-selected="false">العلامات</button>
       </div>
-      <div id="lastReadBox"></div>
+      <p id="quranIndexSummary" class="quran-index-summary" role="status">114 سورة</p>
       <div id="surahList" class="surah-list"></div>
       <div id="juzList" class="surah-list hidden"></div>
       <div id="marksList" class="surah-list hidden"></div>
@@ -130,11 +129,15 @@
     <div id="quranReader" class="hidden">
       <div class="reader-bar">
         <button class="icon-btn" id="btnBackIndex" aria-label="العودة إلى فهرس القرآن"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="stroke" d="m10 6 6 6-6 6"/></svg></button>
-        <div class="reader-title"><b id="rdSurahName"></b><small id="rdSurahMeta"></small></div>
+        <button type="button" class="reader-title" id="btnReaderLocation" aria-label="تغيير موضع القراءة"><b id="rdSurahName"></b><small id="rdSurahMeta"></small></button>
+        <button type="button" class="icon-btn" id="btnReaderBookmark" aria-label="حفظ علامة عند موضع القراءة" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="stroke" d="M6 4h12v17l-6-4-6 4Z"/></svg></button>
+        <button class="icon-btn" id="btnReaderFocus" aria-label="قراءة بملء الشاشة" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="stroke" d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/></svg></button>
         <button class="icon-btn" id="btnReaderMenu" aria-label="خيارات القراءة" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="stroke" d="M5 7h14M8 12h8M10 17h4"/></svg></button>
       </div>
-      <div class="reader-tools hidden" id="readerTools">
-        <section class="reading-scale" aria-labelledby="readerSizeLabel">
+      <div class="reader-tools hidden" id="readerTools" role="region" aria-labelledby="readerToolsTitle">
+        <div class="reader-tools-heading"><h2 id="readerToolsTitle">خيارات القراءة</h2><button class="btn ghost" id="btnCloseReaderTools" type="button">تم</button></div>
+        <div class="seg reader-settings-tabs" role="tablist" aria-label="إعدادات المصحف"><button type="button" class="on" role="tab" aria-selected="true" aria-controls="readerAppearance" data-reader-panel="appearance">المظهر</button><button type="button" role="tab" aria-selected="false" aria-controls="readerNavigation" data-reader-panel="navigation">الانتقال</button><button type="button" role="tab" aria-selected="false" aria-controls="readerAudioSettings" data-reader-panel="audio">التلاوة</button></div>
+        <section class="reading-scale" id="readerAppearance" aria-labelledby="readerSizeLabel">
           <header class="reading-scale__head">
             <div><strong id="readerSizeLabel">حجم المصحف</strong><small id="readerSizeHint">ملائم للصفحة</small></div>
             <output id="readerFontValue" for="readerFontRange">100%</output>
@@ -150,21 +153,35 @@
             <button type="button" data-reader-size="44">كبير</button>
             <button type="button" data-reader-size="60">كبير جدًا</button>
           </div>
-          <div class="reading-scale__preview" aria-hidden="true"><span id="readerFontSample">الرَّحْمَٰنُ</span><i></i></div>
+          <div class="tool-row"><label for="readerThemeSel">المظهر</label><select id="readerThemeSel"><option value="auto">حسب الجهاز</option><option value="light">فاتح</option><option value="dark">داكن</option></select></div>
         </section>
-        <div class="tool-row tool-row--jump"><label for="gotoType">انتقال مباشر</label>
+        <section id="readerNavigation" class="hidden" aria-label="انتقال مباشر">
+        <p class="reader-panel-hint">انتقل دون أن تفقد موضعك؛ يمكنك الرجوع إليه بعد المعاينة.</p>
+        <form id="readerJumpForm" class="tool-row tool-row--jump"><label for="gotoType">انتقال مباشر</label>
           <select id="gotoType" aria-label="نوع الانتقال"><option value="page">صفحة</option><option value="surah">سورة</option><option value="juz">جزء</option><option value="hizb">حزب</option><option value="ayah">آية في السورة الحالية</option></select>
-          <input type="number" id="gotoValue" min="1" max="604" inputmode="numeric" placeholder="الرقم" aria-label="رقم الموضع"><button class="btn tiny" id="btnGoLocation">اذهب</button></div>
-        <div class="tool-row"><span>القارئ</span><select id="reciterSel"></select></div>
+          <input type="number" id="gotoValue" min="1" max="604" dir="ltr" inputmode="numeric" placeholder="الرقم" aria-label="رقم الموضع" required><button type="submit" class="btn primary" id="btnGoLocation">اذهب</button></form>
+        <p class="reader-panel-hint">اسم السورة وأرقام الآيات متاحة أيضًا من الفهرس والبحث.</p>
+        </section>
+        <section id="readerAudioSettings" class="hidden" aria-label="إعدادات التلاوة">
+        <div class="tool-row"><label for="reciterSel">القارئ</label><select id="reciterSel"></select></div>
         <label class="tool-row switch"><input type="checkbox" id="quranAutoScroll"><span>تتبّع الآية تلقائيًا أثناء التلاوة</span></label>
         <label class="tool-row switch"><input type="checkbox" id="quranContinuous"><span>الانتقال للآية التالية تلقائيًا</span></label>
+        <p class="reader-panel-hint">تحتاج التلاوة إلى الإنترنت ما لم يكن المقطع محفوظًا على جهازك.</p>
+        </section>
       </div>
+      <div class="reader-return hidden" id="readerReturn" role="status"><span id="readerReturnText"></span><button type="button" id="btnReaderReturn">رجوع لموضعي</button><button type="button" id="btnDismissReaderReturn" aria-label="إخفاء الرجوع للموضع السابق">إخفاء</button></div>
       <div id="ayahBox" class="ayah-box"></div>
-      <div class="player" id="player" data-state="idle" aria-live="polite">
+      <nav id="readerDock" class="reader-dock" aria-label="أدوات صفحة المصحف">
+        <button type="button" class="icon-btn" id="btnFollowingPage" aria-label="الصفحة التالية"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="stroke" d="m10 6 6 6-6 6"/></svg></button>
+        <button type="button" id="btnReaderPage" class="reader-page-location" aria-label="انتقال إلى صفحة"><b id="readerPageNumber">1 / 604</b><small>انتقال إلى صفحة</small></button>
+        <button type="button" class="icon-btn" id="btnPreviousPage" aria-label="الصفحة السابقة"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="stroke" d="m14 6-6 6 6 6"/></svg></button>
+        <button type="button" class="reader-listen" id="btnReaderAudio" aria-expanded="false" aria-controls="player"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="stroke" d="M4 14v-3a8 8 0 0 1 16 0v3M4 13h3v7H4a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1Zm16 0h-3v7h3a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1Z"/></svg><span>تلاوة</span></button>
+      </nav>
+      <div class="player hidden" id="player" data-state="idle" aria-live="polite">
         <button class="icon-btn" id="btnPrevAyah" aria-label="الآية السابقة"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="stroke" d="M6 5v14M18 6l-8 6 8 6Z"/></svg></button>
         <button class="play-btn" id="btnPlay" aria-label="تشغيل التلاوة"><svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 9 6-9 6Z"/></svg><svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></button>
         <button class="icon-btn" id="btnNextAyah" aria-label="الآية التالية"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="stroke" d="M18 5v14M6 6l8 6-8 6Z"/></svg></button>
-        <div class="player-info"><b id="playerInfo">اضغط زر التشغيل للاستماع بصوت القارئ</b><small id="playerState">جاهز</small></div>
+        <button type="button" class="player-info" id="btnReciterOptions" aria-label="اختيار القارئ وإعداد التلاوة"><b id="playerInfo">اختر التلاوة</b><small id="playerReciter"></small><small id="playerState">جاهز</small></button>
         <button class="btn tiny player-retry hidden" id="btnRetryAudio">إعادة المحاولة</button>
         <button class="icon-btn" id="btnRepeat" title="تكرار الآية" aria-label="تفعيل تكرار الآية" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="stroke" d="M17 3l3 3-3 3M20 6H8a5 5 0 0 0-5 5M7 21l-3-3 3-3M4 18h12a5 5 0 0 0 5-5"/></svg></button>
       </div>
@@ -189,6 +206,7 @@
         <div class="reader-title"><b id="adTitle"></b><small id="adProgress"></small></div>
         <button class="icon-btn" id="btnResetAdhkar" title="إعادة العدّ" aria-label="إعادة عدّ الأذكار"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="stroke" d="M4 4v6h6M5.6 15.5A8 8 0 1 0 6 7.3L4 10"/></svg></button>
       </div>
+      <div class="adhkar-progress"><progress id="adProgressBar" max="100" value="0" aria-label="تقدم الأذكار"></progress><span>المس العدّاد مع كل تكرار</span></div>
       <div id="adhkarItems"></div>
       <button class="btn primary add-dua hidden" id="btnAddDua"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="stroke" d="M12 5v14M5 12h14"/></svg><span>إضافة دعاء</span></button>
     </div>
@@ -221,6 +239,7 @@
 
   <!-- ═══════════ القبلة ═══════════ -->
   <section class="view" id="view-qibla">
+    <div class="screen-intro"><span class="eyebrow">وجهتك إلى الصلاة</span><h1>اتجاه القبلة</h1></div>
     <div class="qibla-wrap">
       <div class="qibla-context"><span class="q-place" id="qPlace">—</span><span class="q-accuracy" id="qAccuracy">جارٍ قياس الدقة</span></div>
 
@@ -230,8 +249,8 @@
         <small id="qGuideSub">وجّه أعلى الجهاز نحو الأمام</small>
       </div>
 
+      <div class="row-btns center" id="qActions"></div>
       <div class="compass mihrab-compass" id="compass">
-        <span class="compass-arch" aria-hidden="true"></span>
         <div class="zone" id="zone"></div>
         <div class="dial" id="dial">
           <span class="card-n">ش</span><span class="card-e">ق</span><span class="card-s">ج</span><span class="card-w">غ</span>
@@ -244,7 +263,6 @@
       </div>
 
       <div class="q-status" id="qStatus" role="status"></div>
-      <div class="row-btns center" id="qActions"></div>
       <details class="q-details">
         <summary>عرض تفاصيل الاتجاه</summary>
         <div class="q-facts">
@@ -279,7 +297,7 @@
       <p>اختر الذكر ثم المس الدائرة مع كل تكرار.</p>
     </div>
     <div class="tasbih-wrap">
-      <select id="tasbihPhrase">
+      <select id="tasbihPhrase" aria-label="الذكر المختار">
         <option>سُبْحَانَ اللهِ</option><option>الْحَمْدُ لِلَّهِ</option><option>اللهُ أَكْبَرُ</option>
         <option>لَا إِلَهَ إِلَّا اللهُ</option><option>أَسْتَغْفِرُ اللهَ</option>
         <option>لَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللهِ</option>
@@ -289,7 +307,7 @@
       <button class="counter-btn" id="counterBtn" aria-label="اضغط للتسبيح"><b id="counterVal" aria-live="polite">0</b><small>اضغط للتسبيح</small></button>
       <div class="tasbih-row">
         <button class="btn ghost" id="tasbihReset">تصفير</button>
-        <select id="tasbihTarget"><option value="0">بلا هدف</option><option value="33">33</option><option value="100">100</option><option value="1000">1000</option></select>
+        <select id="tasbihTarget" aria-label="هدف التسبيح"><option value="0">بلا هدف</option><option value="33">33</option><option value="100">100</option><option value="1000">1000</option></select>
         <button class="btn ghost" id="tasbihVibe">اهتزاز: تشغيل</button>
       </div>
       <div class="tasbih-total">المجموع الكلي: <b id="tasbihTotal">0</b></div>
@@ -306,18 +324,22 @@
     <div class="card">
       <h3>الموقع</h3>
       <div class="row"><span>الموقع الحالي</span><b id="setLoc">—</b></div>
-      <div class="row-btns"><button class="btn primary" id="btnAutoLoc">تحديد تلقائي (GPS)</button></div>
-      <div class="grid2">
-        <label>خط العرض<input type="number" step="0.0001" id="inLat"></label>
-        <label>خط الطول<input type="number" step="0.0001" id="inLng"></label>
-      </div>
-      <label>اسم المدينة<input type="text" id="inCity" placeholder="مثال: الرياض"></label>
-      <div class="row-btns"><button class="btn" id="btnSaveLoc">حفظ الموقع يدوياً</button></div>
-      <details><summary>اختيار مدينة جاهزة</summary><select id="citySel"></select></details>
+      <p class="muted small" id="locationMode"></p>
+      <div class="row-btns"><button class="btn primary" id="btnAutoLoc">استخدام موقعي الحالي</button></div>
+      <p id="locationStatus" class="field-status" role="status" hidden></p>
+      <label for="citySel">أو اختر مدينتك<select id="citySel"></select></label>
+      <details id="coordinateDetails"><summary>إدخال الإحداثيات يدويًا</summary>
+        <div class="grid2">
+          <label>خط العرض<input type="number" min="-90" max="90" step="any" inputmode="decimal" id="inLat" aria-describedby="locationStatus"></label>
+          <label>خط الطول<input type="number" min="-180" max="180" step="any" inputmode="decimal" id="inLng" aria-describedby="locationStatus"></label>
+        </div>
+        <label>اسم المدينة<input type="text" id="inCity" placeholder="مثال: الشحر، حضرموت" maxlength="100"></label>
+        <div class="row-btns"><button class="btn" id="btnSaveLoc">حفظ الموقع يدوياً</button></div>
+      </details>
     </div>
 
-    <div class="card">
-      <h3>طريقة الحساب</h3>
+    <details class="card disclosure settings-section" id="calculationSettings">
+      <summary><span><b>حساب المواقيت والتقويم</b><small>الطريقة، مذهب العصر والتعديلات</small></span></summary>
       <label>الطريقة<select id="selMethod"></select></label>
       <label>مذهب العصر<select id="selAsr"><option value="Standard">الجمهور (شافعي/مالكي/حنبلي)</option><option value="Hanafi">الحنفي</option></select></label>
       <label>خطوط العرض العالية<select id="selHigh">
@@ -328,7 +350,7 @@
       <details><summary>تعديل يدوي للمواقيت (بالدقائق)</summary>
         <div class="grid3" id="tuneGrid"></div>
       </details>
-    </div>
+    </details>
 
     <div class="card">
       <h3>التنبيهات</h3>
@@ -336,6 +358,7 @@
       <div class="row-btns"><button class="btn primary" id="btnPerm">طلب الإذن</button></div>
       <label class="switch"><input type="checkbox" id="swNotif"><span>تفعيل تنبيه الصلوات</span></label>
       <label class="switch"><input type="checkbox" id="swAdhan"><span>صوت الأذان مع التنبيه</span></label>
+      <details class="disclosure"><summary>الصوت والتذكير المسبق</summary>
       <label>صوت الأذان<select id="selAdhan">
         <option value="a1">أذان 1</option><option value="a2">أذان 2</option><option value="a3">أذان 3</option>
         <option value="a4">أذان 4</option><option value="a5">أذان 5</option><option value="a6">أذان 6</option>
@@ -346,6 +369,7 @@
         <option value="0">بدون</option><option value="5">5 دقائق</option><option value="10">10 دقائق</option>
         <option value="15">15 دقيقة</option><option value="20">20 دقيقة</option><option value="30">30 دقيقة</option></select></label>
       <label class="switch"><input type="checkbox" id="swAdhkarNotif"><span>تذكير أذكار الصباح والمساء</span></label>
+      </details>
       <p class="muted small" id="webNotifNote">في نسخة الويب على الآيفون: أضف التطبيق إلى الشاشة الرئيسية حتى يسمح النظام بإشعارات الويب.</p>
     </div>
 
@@ -361,17 +385,17 @@
       <label class="switch"><input type="checkbox" id="swKeepAwake"><span>إبقاء الشاشة مضاءة أثناء القراءة</span></label>
     </div>
 
-    <div class="card">
-      <h3>البيانات</h3>
-      <div class="row"><span>حالة العمل بدون إنترنت</span><b id="offlineState">—</b></div>
+    <details class="card disclosure settings-section" id="dataSettings">
+      <summary><span><b>التنزيل والبيانات</b><small>العمل دون إنترنت وإدارة التخزين</small></span></summary>
+      <div class="row"><span>حالة العمل بدون إنترنت</span><b id="offlineState" role="status">—</b></div>
       <div class="row-btns"><button class="btn" id="btnPrecache">تجهيز التطبيق للعمل أوفلاين</button><button class="btn ghost danger" id="btnClear">مسح جميع البيانات</button></div>
-    </div>
+    </details>
 
-    <div class="card about">
-      <h3>عن التطبيق</h3>
-      <p class="muted small">مشكاة — يعمل بالكامل بدون إنترنت. نص المصحف برواية حفص عن عاصم (الرسم العثماني)، والأذكار من حصن المسلم. مواقيت الصلاة محسوبة فلكياً على جهازك، وقد تختلف دقائق عن التقويم المحلي — اعتمد إعلان المسجد عند الاختلاف.</p>
+    <details class="card about disclosure settings-section">
+      <summary>عن مشكاة ومصادر المحتوى</summary>
+      <p class="muted small">مشكاة — المصحف برواية حفص عن عاصم، والأذكار من حصن المسلم. المحتوى المحفوظ والمواقيت يعملان دون إنترنت؛ التلاوة والمراجع التي لم تُحفظ تحتاج اتصالًا. مواقيت الصلاة محسوبة على جهازك، وقد تختلف دقائق عن التقويم المحلي.</p>
       <p class="muted small">الإصدار 1.1</p>
-    </div>
+    </details>
   </section>
 </main>
 
@@ -396,14 +420,14 @@
 <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script src="js/prayer.js?v=5"></script>
-<script src="js/store.js?v=12"></script>
+<script src="js/store.js?v=13"></script>
 <script src="js/quran-core.js?v=12"></script>
-<script src="js/quran.js?v=12"></script>
-<script src="js/adhkar.js?v=8"></script>
-<script src="js/qibla.js?v=5"></script>
-<script src="js/library.js?v=12"></script>
-<script src="js/khatma.js?v=9"></script>
-<script src="js/notify.js?v=6"></script>
-<script src="js/app.js?v=12"></script>
+<script src="js/quran.js?v=17"></script>
+<script src="js/adhkar.js?v=14"></script>
+<script src="js/qibla.js?v=13"></script>
+<script src="js/library.js?v=14"></script>
+<script src="js/khatma.js?v=15"></script>
+<script src="js/notify.js?v=13"></script>
+<script src="js/app.js?v=14"></script>
 </body>
 </html>

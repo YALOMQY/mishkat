@@ -1,0 +1,142 @@
+'use strict';
+
+// Isolated localhost profile: no real plans, permissions or production services.
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const {chromium} = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const output = path.resolve('artifacts/khatma');
+fs.mkdirSync(output, {recursive:true});
+
+(async()=>{
+  const browser = await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+  try {
+    const context = await browser.newContext({viewport:{width:375,height:812},locale:'ar',timezoneId:'Asia/Aden',reducedMotion:'reduce',serviceWorkers:'block'});
+    await context.route('https://**',r=>r.abort());
+    await context.addInitScript(()=>{
+      if (!localStorage.getItem('mishkat.settings.v1')) localStorage.setItem('mishkat.settings.v1',JSON.stringify({onboardingSeen:true,notificationPromptSeen:true,theme:'light'}));
+    });
+    const p = await context.newPage(), errors=[];
+    p.on('pageerror',e=>errors.push(e.message));
+    const ready=async()=>{await p.goto('http://127.0.0.1:8777/index.html#library');await p.locator('#splash').waitFor({state:'detached'});await p.locator('[data-tools-tab="khatma"]').click();};
+    const shot=async(name)=>{await p.locator('#toast:not(.show)').waitFor();await p.screenshot({path:path.join(output,name+'.png')});};
+    const active=()=>p.evaluate(()=>Khatma.getActive());
+    await ready();
+    await shot('create-light');
+    const form=p.locator('[data-khatma-create]');
+    assert.equal(await form.locator('[name="startValue"]').isVisible(),false);
+    await form.locator('[data-khatma-duration="60"]').click();
+    assert.equal(await form.locator('[name="duration"]').inputValue(),'60');
+    assert.match(await form.locator('[data-khatma-preview]').innerText(),/11 صفحة/);
+    await form.locator('.khatma-start-options>summary').click();
+    await form.locator('[name="name"]').fill('   ');
+    await form.locator('[type="submit"]').click();
+    assert.equal(await p.locator('[data-khatma-error]:visible').count(),1);
+    assert.equal(await p.evaluate(()=>Khatma.list().length),0);
+    assert.equal(await form.locator('[name="name"]').getAttribute('aria-invalid'),'true');
+    const longName='ختمتي مع عائلتي — قراءة هادئة بعد الفجر وقبل النوم';
+    await form.locator('[name="name"]').fill(longName);
+    await form.locator('[name="startKind"]').selectOption('page');
+    await form.locator('[name="startValue"]').fill('262');
+    assert.match(await form.locator('[data-khatma-preview]').innerText(),/6 صفحة/);
+    await form.locator('.khatma-reminder>summary').click();
+    assert.equal(await form.locator('[name="prayer"]').isVisible(),false);
+    assert.equal(await form.locator('[name="time"]').isVisible(),false);
+    await form.locator('[name="reminderType"]').selectOption('prayer');
+    await form.locator('[name="prayer"]').selectOption('fajr');
+    await form.locator('[name="offsetMinutes"]').fill('-5');
+    assert.equal(await form.locator('[name="time"]').isVisible(),false);
+    await form.locator('[type="submit"]').click();
+    assert.equal((await active()).startPage,262);
+    assert.equal((await active()).duration,60);
+    assert.deepEqual((await active()).reminder,{type:'prayer',prayer:'fajr',offsetMinutes:-5});
+    assert.match(await p.locator('.khatma-wird').innerText(),/262 إلى 267/);
+    assert.equal(await p.locator('.khatma-plan-header h2').evaluate(e=>e===document.activeElement),true);
+    await shot('plan-light');
+
+    await p.locator('[data-khatma-progress] [name="page"]').fill('900');
+    await p.locator('[data-khatma-progress] button').click();
+    assert.equal((await active()).progressPage,261);
+    assert.match(await p.locator('[data-khatma-progress] [data-khatma-error]').innerText(),/604/);
+    await p.locator('[data-khatma-progress] [name="page"]').fill('270');
+    await p.locator('[data-khatma-progress] button').click();
+    assert.equal((await active()).progressPage,270);
+    await p.locator('[data-khatma-action="undo-progress"]').click();
+    assert.equal((await active()).progressPage,261);
+    await p.locator('[data-khatma-action="advance"][data-pages="5"]').click();
+    assert.equal((await active()).progressPage,266);
+    await shot('saved-light');
+    await p.locator('.khatma-manage>summary').click();
+    await p.locator('[data-khatma-action="pause"]').click();
+    assert.equal((await active()).status,'paused');
+    await shot('paused-light');
+    await p.locator('[data-khatma-action="advance"][data-pages="1"]').click();
+    await p.locator('[data-khatma-action="undo-progress"]').click();
+    assert.equal((await active()).status,'paused');
+    assert.equal((await active()).progressPage,266);
+    await p.locator('[data-khatma-action="resume"]').click();
+    await p.locator('.khatma-manage>summary').click();
+    await p.locator('.khatma-edit>summary').click();
+    const edit=p.locator('[data-khatma-edit]');
+    await edit.locator('[name="duration"]').selectOption('continuous');
+    await edit.locator('[name="dailyPages"]').fill('8');
+    await edit.locator('.khatma-reminder>summary').click();
+    await edit.locator('[name="reminderType"]').selectOption('time');
+    assert.equal(await edit.locator('[name="prayer"]').isVisible(),false);
+    await edit.locator('[name="time"]').fill('20:30');
+    await edit.locator('[type="submit"]').click();
+    assert.equal((await active()).duration,'continuous');
+    assert.equal((await active()).dailyPages,8);
+    assert.equal((await active()).reminder.time,'20:30');
+    const saved=await active();
+    await p.reload();await p.locator('#splash').waitFor({state:'detached'});await p.locator('[data-tools-tab="khatma"]').click();
+    assert.deepEqual(await active(),saved,'Existing plan survives reload without schema migration');
+    await p.locator('.khatma-row').click();
+    await p.locator('[data-khatma-action="continue"]').click();
+    await p.waitForFunction(()=>Quran.currentPage===267);
+    await p.locator('#tabbar [data-view="library"]').click();
+    await p.locator('[data-khatma-progress] [name="page"]').fill('604');
+    await p.locator('[data-khatma-progress] button').click();
+    assert.equal((await active()).status,'completed');
+    assert.equal(await p.locator('.khatma-wird [data-khatma-action="continue"]').count(),0);
+    await shot('completed-light');
+    await p.locator('[data-khatma-action="undo-progress"]').click();
+    assert.deepEqual((await active()).history,saved.history);
+    assert.equal((await active()).status,'active');
+    console.log('✓ Simple create, dynamic preview, conditional reminders, validation, save/undo, pause/resume, edit, reload, reader destination, completion recovery');
+
+    for (const theme of ['light','dark']) {
+      await p.locator('#btnSettingsTop').click();await p.locator('#selTheme').selectOption(theme);await p.locator('#selUIFont').selectOption('xlarge');
+      await p.locator('#tabbar [data-view="library"]').click();
+      for (const [width,height] of [[320,740],[375,812],[430,932],[768,1024],[812,375]]) {
+        await p.setViewportSize({width,height});
+        await p.evaluate(()=>document.querySelector('#app').scrollTo({top:0,behavior:'instant'}));
+        assert.ok(await p.locator('#khatmaRoot').evaluate(e=>e.scrollWidth-e.clientWidth)<2,`detail overflow ${theme} ${width}`);
+        await shot(`detail-${theme}-${width}`);
+        const tiny=await p.locator('#khatmaRoot button:visible').evaluateAll(xs=>xs.filter(e=>e.getBoundingClientRect().width<44||e.getBoundingClientRect().height<44).map(e=>e.textContent));
+        assert.deepEqual(tiny,[],'44px targets');
+      }
+      await p.locator('[data-khatma-action="back"]').click();
+      await p.setViewportSize({width:375,height:812});await shot(`list-${theme}`);
+      await p.locator('.khatma-new>summary').click();
+      await p.locator('[data-khatma-create] .khatma-start-options>summary').click();
+      await p.locator('[data-khatma-create] [name="name"]').fill(longName);
+      await p.locator('[data-khatma-create] .khatma-duration-options>summary').click();
+      await p.locator('[data-khatma-create] [name="duration"]').selectOption('custom');
+      await p.locator('[data-khatma-create] [name="endDate"]').fill('2020-01-01');
+      await p.locator('[data-khatma-create] [type="submit"]').click();
+      assert.equal(await p.evaluate(()=>Khatma.list().length),1,'Past date must not create a plan');
+      await p.locator('[data-khatma-create] [name="duration"]').selectOption('continuous');
+      await p.locator('[data-khatma-create] [name="dailyPages"]').fill('10');
+      await p.setViewportSize({width:320,height:740});
+      assert.ok(await p.locator('#khatmaRoot').evaluate(e=>e.scrollWidth-e.clientWidth)<2,'Expanded create fits small phone');
+      await shot(`custom-${theme}-320`);
+      await p.locator('.khatma-row').click();
+    }
+    await p.evaluate(()=>document.documentElement.style.setProperty('font-size','32px','important'));
+    await p.waitForFunction(()=>getComputedStyle(document.documentElement).fontSize==='32px');
+    assert.ok(await p.locator('#khatmaRoot').evaluate(e=>e.scrollWidth-e.clientWidth)<2,'200% text reflows');
+    assert.deepEqual(errors,[]);
+    console.log('✓ Small/large/tablet/landscape, both themes, large Arabic, 200% text, 44px targets, no runtime errors');
+  } finally {await browser.close();}
+})().catch(error=>{console.error(error);process.exitCode=1;});

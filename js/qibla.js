@@ -5,6 +5,7 @@ const Qibla = (function () {
   let bearing = null, distance = null, heading = null, smooth = null;
   let listening = false, accuracy = null, accuracyLevel = 'unknown';
   let aligned = false, noSensorFlag = false, sampleTimestamp = null, northType = null;
+  let sensorTimer = null, session = 0;
 
   const degWord = v => `${toAr(v)} درجة`;                       // للنص الكبير: لا لبس مع الرقم ٥
   const degHTML = v => `<span class="q-deg">${toAr(v)}<i>°</i></span>`;   // للبطاقات: علامة مرفوعة مصغّرة
@@ -61,12 +62,14 @@ const Qibla = (function () {
 
   /* ───────── البوصلة ───────── */
   window.__mishkatHeading = function (h, acc, meta) {
+    if (!listening) return;
     // يقبل النداء القديم (heading, accuracy)، وكذلك كائن البيانات الجديد.
     if (h && typeof h === 'object') {
       meta = h;
       h = meta.heading;
       acc = meta.accuracy;
     }
+    if (h == null || typeof h !== 'number' || !Number.isFinite(h)) return;
 
     let timestamp = null;
     if (meta && typeof meta === 'object' && meta.timestamp != null && Number.isFinite(Number(meta.timestamp))) {
@@ -79,15 +82,15 @@ const Qibla = (function () {
     // CoreLocation يرسل قيمة سالبة عندما لا يستطيع تحديد الدقة؛ نتجاهل القراءة كلها.
     if (Number.isFinite(numericAccuracy) && numericAccuracy < 0) return;
 
-    const oldLevel = accuracyLevel;
-    if (Number.isFinite(numericAccuracy)) accuracy = numericAccuracy;
+    const oldLevel = accuracyLevel, oldNorth = northType;
+    accuracy = Number.isFinite(numericAccuracy) ? numericAccuracy : null;
     accuracyLevel = classifyAccuracy(accuracy);
     if (meta && typeof meta === 'object') {
       if (typeof meta.north === 'string') northType = meta.north;
     }
 
     apply(h, timestamp);
-    if (oldLevel !== accuracyLevel) refreshUI();
+    if (oldLevel !== accuracyLevel || oldNorth !== northType) refreshUI();
   };
 
   function apply(h, timestamp) {
@@ -95,7 +98,7 @@ const Qibla = (function () {
     if (!Number.isFinite(h)) return;
     h = normalize(h);
 
-    const now = Number.isFinite(Number(timestamp)) ? Number(timestamp) : Date.now();
+    const now = timestamp != null && Number.isFinite(Number(timestamp)) ? Number(timestamp) : Date.now();
     if (smooth == null) {
       smooth = h;
     } else {
@@ -109,14 +112,19 @@ const Qibla = (function () {
     heading = normalize(smooth);
     $('#qHeading').innerHTML = `${degHTML(Math.round(heading))} ${dirName(heading)}`;
     render();
-    if (first) { listening = true; noSensorFlag = false; refreshUI(); }      // أول قراءة تصل: نحدّث الحالة والأزرار
+    clearTimeout(sensorTimer);
+    sensorTimer = setTimeout(noSensor, 8000);
+    if (first) { noSensorFlag = false; refreshUI(); }
   }
 
   function onOrient(e) {
     let h = null;
     let acc = null;
     if (typeof e.webkitCompassHeading === 'number') { h = e.webkitCompassHeading; acc = e.webkitCompassAccuracy; }
-    else if (typeof e.alpha === 'number') h = 360 - e.alpha;
+    else if (e.absolute === true && typeof e.alpha === 'number') h = 360 - e.alpha;
+    if (h == null) return; // alpha النسبي ليس اتجاهًا جغرافيًا.
+    const rotation = Number(screen.orientation?.angle ?? window.orientation ?? 0);
+    h = normalize(h + rotation);
     window.__mishkatHeading(h, acc, {
       heading: h,
       accuracy: acc,
@@ -139,14 +147,20 @@ const Qibla = (function () {
     dial.style.setProperty('--anti', `${-dialRot}deg`);
     needle.style.setProperty('--anti', `${-needleRot}deg`);
 
-    if (heading == null) { comp.classList.remove('aligned', 'close'); return; }
+    if (heading == null) {
+      comp.classList.remove('aligned', 'close');
+      $('#qGuide').classList.remove('ok', 'near');
+      $('#qDelta').textContent = '';
+      $('#qHeading').textContent = '—';
+      return;
+    }
 
     // فرق موجَّه: موجب = استدر يميناً، سالب = استدر يساراً
     const delta = shortestDelta(bearing, heading);
     const abs = Math.abs(delta);
 
     // Hysteresis: ندخل ضمن التطابق عند 3°، ولا نخرج بسبب الاهتزاز إلا بعد 7°.
-    const canAlign = accuracyLevel !== 'weak';
+    const canAlign = accuracyLevel === 'good' && northType === 'true';
     if (!canAlign) {
       aligned = false;
     } else if (aligned) {
@@ -165,8 +179,8 @@ const Qibla = (function () {
       sub.textContent = 'تقبّل الله صلاتك';
       $('#qDelta').textContent = '✓';
     } else if (!canAlign && abs <= ALIGN_EXIT) {
-      main.textContent = 'عاير البوصلة للتأكد';
-      sub.textContent = 'الدقة الحالية ضعيفة';
+      main.textContent = 'أنت قريب من اتجاه القبلة';
+      sub.textContent = 'قراءة تقريبية — تحقق من دقة البوصلة';
       $('#qDelta').textContent = toAr(Math.round(abs));
     } else {
       main.textContent = `استدر ${delta > 0 ? 'يميناً ↻' : 'يساراً ↺'}`;
@@ -194,14 +208,13 @@ const Qibla = (function () {
 
     if (heading == null) {
       if (noSensorFlag) {
-        setAccuracyBadge('poor', 'لا يوجد مستشعر');
-        // لا مغناطيسية في الجهاز (سمليتر أو حاسوب): الوضع الثابت — القرص يعمل كخريطة اتجاه
+        setAccuracyBadge('poor', 'القراءة غير متاحة');
+        // غياب القراءة لا يثبت غياب المستشعر؛ نعرض اتجاهًا ثابتًا مع إعادة المحاولة.
         st.className = 'q-status warn';
-        st.textContent = 'لا يوجد مستشعر بوصلة في هذا الجهاز. القرص يعرض اتجاه القبلة من الشمال الحقيقي — '
-          + 'استعن بأي بوصلة أخرى أو بالشمس لتحديد الشمال.';
+        st.textContent = 'لم تصل قراءة حديثة من البوصلة. الاتجاه أدناه ثابت من الشمال الحقيقي؛ أعد المحاولة أو استعن ببوصلة أخرى.';
         $('#qGuideMain').textContent = `اتجه نحو ${degWord(bearing.toFixed(0))}`;
         $('#qGuideSub').textContent = `من الشمال الحقيقي — جهة ${dirName(bearing)}`;
-        acts.innerHTML = '<button class="btn ghost" id="btnQiblaLoc">تحديث موقعي</button>';
+        acts.innerHTML = '<button class="btn primary" id="btnQiblaPerm">إعادة تشغيل البوصلة</button><button class="btn ghost" id="btnQiblaLoc">تحديث موقعي</button>';
       } else if (listening) {
         setAccuracyBadge('', 'جارٍ قياس الدقة');
         st.className = 'q-status';
@@ -233,10 +246,14 @@ const Qibla = (function () {
       setAccuracyBadge('medium', 'الدقة متوسطة');
       st.className = 'q-status';
       st.textContent = `دقة البوصلة متوسطة — ${northLabel}. أبعد الجهاز عن المعادن لتحسينها.`;
-    } else {
+    } else if (accuracyLevel === 'good') {
       setAccuracyBadge('good', 'الدقة جيدة');
       st.className = 'q-status ok';
       st.textContent = `دقة البوصلة جيدة — ${northLabel}. ضع الجهاز مسطّحاً وأدر جسمك نحو المؤشر.`;
+    } else {
+      setAccuracyBadge('medium', 'الدقة غير معروفة');
+      st.className = 'q-status warn';
+      st.textContent = `قراءة تقريبية — ${northLabel}. هذا الجهاز لا يقدّم تقديرًا للدقة؛ تحقق باستخدام بوصلة موثوقة.`;
     }
     acts.innerHTML = '<button class="btn ghost" id="btnQiblaLoc">تحديث موقعي</button>';
     bindActions();
@@ -252,11 +269,13 @@ const Qibla = (function () {
   async function enable() {
     drawTicks();
     if (listening) return;
+    const attempt = ++session;
+    noSensorFlag = false;
 
     if (window.__MISHKAT_NATIVE__) {
-      MishkatNative.startHeading();
       listening = true; refreshUI();
-      setTimeout(() => { if (heading == null) noSensor(); }, 3500);
+      MishkatNative.startHeading();
+      sensorTimer = setTimeout(noSensor, 8000);
       return;
     }
     const needsPrompt = typeof DeviceOrientationEvent !== 'undefined'
@@ -274,16 +293,17 @@ const Qibla = (function () {
         return;
       }
     }
+    if (attempt !== session) return;
     listening = true;
     window.addEventListener('deviceorientationabsolute', onOrient, true);
     window.addEventListener('deviceorientation', onOrient, true);
     refreshUI();
-    setTimeout(() => { if (heading == null) noSensor(); }, 3500);
+    sensorTimer = setTimeout(noSensor, 8000);
   }
 
   function noSensor() {
-    listening = false; noSensorFlag = true;
-    refreshUI();
+    stop(); noSensorFlag = true;
+    render(); refreshUI();
   }
 
   /* يُستدعى عند فتح تبويب القبلة */
@@ -295,6 +315,10 @@ const Qibla = (function () {
   }
   /** إيقاف المستشعر عند مغادرة الشاشة — مع تصفير الحالة ليعود التشغيل عند العودة */
   function stop() {
+    session++;
+    clearTimeout(sensorTimer);
+    window.removeEventListener('deviceorientationabsolute', onOrient, true);
+    window.removeEventListener('deviceorientation', onOrient, true);
     if (window.__MISHKAT_NATIVE__ && listening) MishkatNative.stopHeading();
     listening = false;
     heading = null;
@@ -304,6 +328,7 @@ const Qibla = (function () {
     accuracyLevel = 'unknown';
     northType = null;
     aligned = false;
+    noSensorFlag = false;
   }
 
   return { init, stop, enable, setLocation, get bearing() { return bearing; } };

@@ -3,6 +3,7 @@ const Notify = (function () {
   const ADHAN_BASE = 'https://cdn.aladhan.com/audio/adhans/';
   let timers = [], adhanEl = null, actx = null, primed = false;
   let pushStatusTimer = null, pushStatusRequest = 0;
+  let permissionRequest = null;
   let pushStatus = {
     available: false, resolved: false, checking: false, configured: false,
     authorization: 'unknown', registered: false, token: '', error: ''
@@ -11,7 +12,10 @@ const Notify = (function () {
 
   const supported = () => 'Notification' in window;
   const perm = () => {
-    if (window.__MISHKAT_NATIVE__) return Store.s.notif ? 'granted' : 'default';
+    if (window.__MISHKAT_NATIVE__) {
+      if (['authorized', 'provisional', 'ephemeral'].includes(pushStatus.authorization)) return 'granted';
+      return pushStatus.authorization === 'denied' ? 'denied' : 'default';
+    }
     return supported() ? Notification.permission : 'unsupported';
   };
 
@@ -47,6 +51,7 @@ const Notify = (function () {
       try { detail = JSON.parse(detail); } catch (e) { detail = {}; }
     }
     detail = detail && typeof detail === 'object' ? detail : {};
+    const previousAuthorization = pushStatus.authorization;
     setPushStatus({
       available: true,
       resolved: true,
@@ -57,6 +62,11 @@ const Notify = (function () {
       token: typeof detail.token === 'string' ? detail.token.trim() : '',
       error: ''
     });
+    refreshUI();
+    if (previousAuthorization !== pushStatus.authorization) {
+      schedule();
+      window.dispatchEvent(new Event('mishkat-permission-changed'));
+    }
   }
 
   window.addEventListener('mishkat-push-status', event => acceptPushStatus(event.detail));
@@ -101,24 +111,39 @@ const Notify = (function () {
   }
 
   async function request() {
+    if (permissionRequest) return permissionRequest;
+    permissionRequest = requestPermission();
+    try { return await permissionRequest; }
+    finally { permissionRequest = null; }
+  }
+
+  async function requestPermission() {
     if (isNative()) {                                   // التطبيق الأصلي: إذن تنبيهات النظام
-      MishkatNative.requestNotifications();
       const ok = await new Promise(res => {
-        const h = e => { window.removeEventListener('mishkat-perm', h); res(!!e.detail); };
+        const finish = ok => { clearTimeout(timer); window.removeEventListener('mishkat-perm', h); res(ok); };
+        const h = e => finish(e.detail === true);
+        const timer = setTimeout(() => finish(false), 30000);
         window.addEventListener('mishkat-perm', h);
-        setTimeout(() => { window.removeEventListener('mishkat-perm', h); res(false); }, 30000);
+        try { MishkatNative.requestNotifications(); } catch (_) { finish(false); }
       });
-      Store.set('notif', ok);
+      if (ok) {
+        Store.set('notif', true);
+        setPushStatus({ authorization: 'authorized', resolved: true });
+      }
       toast(ok ? 'تم تفعيل التنبيهات' : 'لم يُمنح إذن التنبيهات');
       refreshUI(); schedule();
+      window.dispatchEvent(new Event('mishkat-permission-changed'));
       setTimeout(refreshPushStatus, 250);
       return ok ? 'granted' : 'denied';
     }
     if (!supported()) { toast('المتصفح لا يدعم التنبيهات'); return 'unsupported'; }
-    const p = await Notification.requestPermission();
+    let p;
+    try { p = await Notification.requestPermission(); }
+    catch (_) { toast('تعذّر طلب الإذن الآن — حاول مرة أخرى'); return 'default'; }
     if (p === 'granted') { Store.set('notif', true); toast('تم تفعيل التنبيهات'); }
     else toast('لم يُمنح إذن التنبيهات');
     refreshUI(); schedule();
+    window.dispatchEvent(new Event('mishkat-permission-changed'));
     return p;
   }
 
@@ -281,7 +306,8 @@ const Notify = (function () {
   function schedule() {
     syncWidget();
     timers.forEach(clearTimeout); timers = [];
-    if (!Store.s.notif || perm() !== 'granted') { pushToSW([]); return; }
+    if (isNative() && Store.s.notif && !pushStatus.resolved) return;
+    if (!Store.s.notif || perm() !== 'granted') { pushToSW([]); refreshUI(); return; }
     const evs = upcoming();
     const MAX = 2147483647;
     evs.slice(0, 12).forEach(ev => {
@@ -321,22 +347,24 @@ const Notify = (function () {
   function refreshUI() {
     const p = perm();
     const state = $('#permState'); if (state) state.textContent =
-      p === 'granted' ? 'ممنوح ✓' : p === 'denied' ? 'مرفوض — فعّله من إعدادات المتصفح' : p === 'unsupported' ? 'غير مدعوم' : 'لم يُطلب بعد';
+      p === 'granted' ? 'مسموح' : p === 'denied' ? `متوقف — فعّله من إعدادات ${isNative() ? 'iPhone' : 'المتصفح'}` : p === 'unsupported' ? 'غير مدعوم' : 'لم يُمنح بعد';
     const ns = $('#notifState');
     if (ns) {
       if (p !== 'granted') ns.textContent = 'التنبيهات غير مفعّلة — اضغط للتفعيل.';
       else if (!Store.s.notif) ns.textContent = 'الإذن ممنوح لكن التنبيه متوقف من الإعدادات.';
       else {
         const n = upcoming().find(e => e.type === 'adhan');
-        ns.textContent = n ? `التنبيه القادم: ${n.ar} — ${fmtTime(n.at)}` : 'مفعّلة ✓ (حدّد موقعك أولاً)';
+        ns.textContent = n ? `التنبيه القادم: ${n.ar} — ${fmtTime(n.at)}` : Store.s.lat == null ? 'حدّد موقعك لجدولة تنبيهات الصلاة.' : 'تنبيهات الصلوات متوقفة — اختر جرس الصلاة لتفعيلها.';
       }
     }
     const card = $('#notifCard'); if (card) card.classList.toggle('ok', p === 'granted' && Store.s.notif);
     const sw = $('#swNotif'); if (sw) sw.checked = Store.s.notif && p === 'granted';
+    const enable = $('#btnEnableNotif'); if (enable) enable.hidden = p === 'granted' && Store.s.notif;
+    const permission = $('#btnPerm'); if (permission) permission.hidden = p === 'granted';
   }
 
-  function test() {
-    if (perm() !== 'granted') { request(); return; }
+  async function test() {
+    if (perm() !== 'granted' && await request() !== 'granted') return;
     if (isNative()) {
       MishkatNative.testNotification(Store.s.adhanSound ? Store.s.adhanFile : 'none');
       toast('سيصلك تنبيه تجريبي بعد ثوانٍ');

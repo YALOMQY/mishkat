@@ -34,6 +34,32 @@ const Store = (function () {
 /* أدوات عامة */
 const $  = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+async function fetchAppJSON(url, timeout = 10000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } finally { clearTimeout(timer); }
+}
+
+async function copyAppText(text) {
+  if (navigator.clipboard?.writeText) {
+    try { await navigator.clipboard.writeText(text); return; } catch (_) {}
+  }
+  const previous = document.activeElement;
+  const field = document.createElement('textarea');
+  field.value = text; field.readOnly = true;
+  field.style.cssText = 'position:fixed;inset:0;opacity:0;pointer-events:none';
+  document.body.appendChild(field); field.select();
+  try {
+    if (!document.execCommand('copy')) throw new Error('copy unavailable');
+  } finally {
+    field.remove(); previous?.focus({ preventScroll: true });
+  }
+}
 /*
  * سياسة الأرقام في الواجهة: أرقام لاتينية 0–9 في كل اللغات.
  * أبقينا الاسم القديم `toAr` كتوافق رجعي للوحدات الحالية، لكنه الآن يطبّق

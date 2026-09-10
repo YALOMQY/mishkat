@@ -1,8 +1,13 @@
 /* ═══════════════ الأذكار — حصن المسلم ═══════════════ */
 const Adhkar = (function () {
-  let DATA = null, curCat = null;
+  let DATA = null, curCat = null, bound = false;
   const FAVS = [1, 2, 3, 27, 129, 130, 13, 96];       // أبواب يكثر استخدامها
-  const ICONS = { 1: 'ص', 2: 'م', 3: 'ي', 27: 'صـ', 129: 'د', 130: 'ذ', 13: 'أ', 96: 'س' };
+  const ICONS = {
+    1: '<path d="M3 17h18M7 17a5 5 0 0 1 10 0M12 3v4M4 8l2 2M20 8l-2 2"/>',
+    2: '<path d="M20 15A8 8 0 0 1 9 4a8 8 0 1 0 11 11Z"/>',
+    0: '<path d="M5 4h14v17l-7-4-7 4ZM12 7v6M9 10h6"/>'
+  };
+  const catIcon = id => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[id] || '<path d="M5 4h14v17l-7-4-7 4ZM8 8h8M8 12h5"/>'}</svg>`;
   const RESET_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4v6h6M5.6 15.5A8 8 0 1 0 6 7.3L4 10"/></svg>';
 
   const esc = t => String(t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -10,9 +15,7 @@ const Adhkar = (function () {
 
   async function load() {
     if (DATA) return DATA;
-    const res = await fetch('data/adhkar.json');
-    if (!res.ok) throw new Error('تعذّر تحميل الأذكار');
-    DATA = await res.json();
+    DATA = await fetchAppJSON('data/adhkar.json');
     return DATA;
   }
 
@@ -26,10 +29,10 @@ const Adhkar = (function () {
   function renderIndex() {
     const mine = myDuas();
     $('#favStrip').innerHTML =
-      `<button class="fav mine" data-cat="0"><b>دع</b><span>أدعيتي${mine.items.length ? ` (${toAr(mine.items.length)})` : ''}</span></button>`
+      `<button class="fav mine" data-cat="0"><b>${catIcon(0)}</b><span>أدعيتي${mine.items.length ? ` (${toAr(mine.items.length)})` : ''}</span></button>`
       + FAVS.slice(0, 7).map(id => {
           const c = DATA.find(x => x.id === id); if (!c) return '';
-          return `<button class="fav" data-cat="${id}"><b>${ICONS[id] || 'ذ'}</b><span>${c.cat}</span></button>`;
+          return `<button class="fav" data-cat="${id}"><b>${catIcon(id)}</b><span>${c.cat}</span></button>`;
         }).join('');
     list(allCats());
   }
@@ -71,7 +74,7 @@ const Adhkar = (function () {
         ${it.title ? `<h4 class="dtitle">${esc(it.title)}</h4>` : ''}
         <p class="dtext">${esc(it.t)}</p>
         <div class="dfoot">
-          <button class="dcount" data-i="${i}">${fin ? '✓ تم' : `${toAr(left)} / ${toAr(it.c)}`}</button>
+          <button class="dcount" data-i="${i}" aria-label="${fin ? 'اكتمل الذكر' : `عدّ الذكر، متبقي ${toAr(left)} من ${toAr(it.c)}`}">${fin ? '✓ تم' : `${toAr(left)} / ${toAr(it.c)}`}</button>
           <div class="dacts">
             ${curCat.custom ? `<button class="mini" data-edit="${i}" aria-label="تعديل الدعاء">حرّر</button>` : ''}
             <button class="mini" data-copy="${i}" aria-label="نسخ الذكر">نسخ</button>
@@ -91,15 +94,19 @@ const Adhkar = (function () {
     const p = getProg(curCat.id);
     const done = curCat.items.filter((it, i) => (p[i] || 0) >= it.c).length;
     $('#adProgress').textContent = `${toAr(done)} من ${toAr(curCat.items.length)} مكتملة`;
+    $('#adProgressBar').value = curCat.items.length ? done / curCat.items.length * 100 : 0;
+    $('#adProgressBar').setAttribute('aria-valuetext', $('#adProgress').textContent);
   }
 
   function tap(i) {
     const p = getProg(curCat.id), it = curCat.items[i];
+    if ((p[i] || 0) >= it.c) return;
     const now = Math.min(it.c, (p[i] || 0) + 1);
     p[i] = now; setProg(curCat.id, p);
     const card = $(`.dhikr[data-i="${i}"]`), btn = $(`.dcount[data-i="${i}"]`);
     const left = it.c - now;
     btn.textContent = left === 0 ? '✓ تم' : `${toAr(left)} / ${toAr(it.c)}`;
+    btn.setAttribute('aria-label', left === 0 ? 'اكتمل الذكر' : `عدّ الذكر، متبقي ${toAr(left)} من ${toAr(it.c)}`);
     btn.classList.remove('pulse'); void btn.offsetWidth; btn.classList.add('pulse');
     vibrate(left === 0 ? [30, 40, 30] : 18);
     if (left === 0) {
@@ -111,6 +118,8 @@ const Adhkar = (function () {
   }
 
   function bind() {
+    if (bound) return;
+    bound = true;
     $('#adhkarIndex').addEventListener('click', e => {
       const b = e.target.closest('[data-cat]');
       if (b) open(+b.dataset.cat);
@@ -122,7 +131,7 @@ const Adhkar = (function () {
       const ed = e.target.closest('[data-edit]');
       if (ed) { editDua(+ed.dataset.edit); return; }
       const c = e.target.closest('[data-copy]');
-      if (c) { try { await navigator.clipboard.writeText(curCat.items[+c.dataset.copy].t); toast('تم النسخ'); } catch (_) {} return; }
+      if (c) { try { await copyAppText(curCat.items[+c.dataset.copy].t); toast('تم النسخ'); } catch (_) { toast('تعذّر النسخ الآن — حاول مرة أخرى'); } return; }
       const r = e.target.closest('[data-reset]');
       if (r) { const p = getProg(curCat.id); p[+r.dataset.reset] = 0; setProg(curCat.id, p); renderItems(); return; }
       const d = e.target.closest('.dhikr');
@@ -130,7 +139,7 @@ const Adhkar = (function () {
     });
 
     $('#btnAddDua').addEventListener('click', () => editDua(-1));
-    $('#btnCancelDua').addEventListener('click', closeEditor);
+    $('#btnCancelDua').addEventListener('click', () => window.Nav ? Nav.exit(closeEditor) : closeEditor());
     $('#btnSaveDua').addEventListener('click', saveDua);
     $('#btnSaveDua2').addEventListener('click', saveDua);
     $('#btnDeleteDua').addEventListener('click', deleteDua);
@@ -140,6 +149,7 @@ const Adhkar = (function () {
   let editIdx = -1;
 
   function editDua(i) {
+    if (window.Nav) Nav.enter('editor');
     editIdx = i;
     const d = i >= 0 ? (Store.s.customDuas || [])[i] : null;
     $('#duaEditorTitle').textContent = d ? 'تعديل الدعاء' : 'دعاء جديد';
@@ -165,7 +175,8 @@ const Adhkar = (function () {
     if (editIdx >= 0) list[editIdx] = item; else list.push(item);
     Store.set('customDuas', list);
     Notify.syncWidget();
-    closeEditor(); curCat = myDuas(); renderItems(); renderIndex();
+    if (window.Nav) Nav.exit(closeEditor); else closeEditor();
+    curCat = myDuas(); renderItems(); renderIndex();
     toast(editIdx >= 0 ? 'تم حفظ التعديل' : 'أُضيف الدعاء');
   }
 
@@ -179,7 +190,8 @@ const Adhkar = (function () {
     Object.keys(p).forEach(k => { const n = +k; if (n < editIdx) np[n] = p[k]; else if (n > editIdx) np[n - 1] = p[k]; });
     setProg(0, np);
     Notify.syncWidget();
-    closeEditor(); curCat = myDuas(); renderItems(); renderIndex();
+    if (window.Nav) Nav.exit(closeEditor); else closeEditor();
+    curCat = myDuas(); renderItems(); renderIndex();
     toast('حُذف الدعاء');
   }
 
@@ -188,5 +200,7 @@ const Adhkar = (function () {
     $('#adhkarView').classList.add('hidden'); $('#adhkarIndex').classList.remove('hidden');
   }
 
-  return { load, renderIndex, bind, open, back, get isOpen() { return !$('#adhkarView').classList.contains('hidden') || !$('#duaEditor').classList.contains('hidden'); } };
+  return { load, renderIndex, bind, open, back, closeEditor,
+    get isEditing() { return !$('#duaEditor').classList.contains('hidden'); },
+    get isOpen() { return !$('#adhkarView').classList.contains('hidden') || !$('#duaEditor').classList.contains('hidden'); } };
 })();

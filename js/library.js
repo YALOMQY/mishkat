@@ -523,8 +523,8 @@
     const noResults = !books.length && !entries.length;
     return `<section class="library-module" dir="rtl" aria-label="المكتبة الإسلامية">
       <header class="library-module__header">
-        <div><small>محتوى موثّق ومحفوظ محليًا</small><h2>المكتبة</h2></div>
-        <span>${catalog.books.length === 1 ? 'كتاب واحد متاح' : `${latinDigits(catalog.books.length)} كتب متاحة`}</span>
+        <div><h2>رفّ القراءة</h2></div>
+        <span>${catalog.books.length === 1 ? 'عنوان واحد · عيّنة مرفقة' : `${latinDigits(catalog.books.length)} عناوين متاحة`}</span>
       </header>
       <label class="library-search"><span>البحث</span><input type="search" value="${escapeAttr(currentQuery)}" data-library-search placeholder="ابحث في العنوان أو الباب أو نص الحديث" autocomplete="off"></label>
       <div class="library-controls">
@@ -533,10 +533,10 @@
         </div>
         <label>الترتيب<select data-library-sort><option value="title"${currentSort === 'title' ? ' selected' : ''}>العنوان</option><option value="author"${currentSort === 'author' ? ' selected' : ''}>المؤلف</option><option value="installed"${currentSort === 'installed' ? ' selected' : ''}>المحمّل أولًا</option></select></label>
       </div>
-      ${catalog.notice ? `<p class="library-notice">${escapeHtml(catalog.notice)}</p>` : ''}
       ${noResults ? stateMarkup(currentCategory === 'favorites' ? 'لا توجد مفضلة' : currentCategory === 'history' ? 'لا يوجد سجل قراءة' : 'لا توجد نتائج', currentQuery ? `لم نجد نتيجة لعبارة «${escapeHtml(currentQuery)}».` : 'ستظهر العناصر هنا عند توفرها.') : ''}
       ${entries.length ? `<div class="library-results"><h3>${currentCategory === 'favorites' ? 'المفضلة' : 'نتائج داخل المحتوى المحلي'}</h3>${entries.map(renderEntryMarkup).join('')}</div>` : ''}
       ${books.length ? `<div class="library-books">${books.map(renderBookRow).join('')}</div>` : ''}
+      ${catalog.notice ? `<details class="disclosure library-sources"><summary>عن المحتوى والمصادر</summary><p class="library-notice">${escapeHtml(catalog.notice)}</p></details>` : ''}
     </section>`;
   }
 

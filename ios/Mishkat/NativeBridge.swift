@@ -11,6 +11,7 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKUIDelegate,
     private let loc = CLLocationManager()
     private var adhanKey = "a1"                 // صوت الأذان المختار من الإعدادات
     private var pageReady = false
+    private var locationRequested = false
     private var pendingLocation: CLLocationCoordinate2D?   // موقع وصل قبل جاهزية الصفحة
 
     /// يُحقن قبل تحميل الصفحة: يعرّف الجسر ويخبر الويب أنه داخل تطبيق أصلي.
@@ -79,12 +80,14 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKUIDelegate,
                 loc.stopUpdatingHeading()
             }
         case "location":
+            locationRequested = true
             switch loc.authorizationStatus {
             case .notDetermined:
                 loc.requestWhenInUseAuthorization()
             case .authorizedWhenInUse, .authorizedAlways:
                 loc.requestLocation()
             case .denied, .restricted:
+                locationRequested = false
                 eval("window.dispatchEvent(new CustomEvent('mishkat-location-error',{detail:{reason:'denied'}}))")
             @unknown default:
                 break
@@ -147,7 +150,8 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKUIDelegate,
 
     /// صوت الأذان يُرفق بالإشعار نفسه (٢٩ ثانية، حدّ iOS ٣٠) — لا يُشغَّل كمقطع صوتي،
     /// فيتحكّم به النظام: يظهر مع البانر، ويسكت بزر الصوت أو بسحب الإشعار.
-    private func sound(for key: String, type: String) -> UNNotificationSound {
+    private func sound(for key: String, type: String) -> UNNotificationSound? {
+        if key == "none" { return nil }
         guard type == "adhan", key.hasPrefix("a"), let n = Int(key.dropFirst()), (1...6).contains(n)
         else { return .default }
         return UNNotificationSound(named: UNNotificationSoundName("adhan\(n).caf"))
@@ -199,7 +203,10 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKUIDelegate,
     // MARK: - الموقع والبوصلة
 
     func locationManager(_ m: CLLocationManager, didUpdateLocations locs: [CLLocation]) {
-        guard let p = locs.last else { return }
+        guard locationRequested, let p = locs.last,
+              p.horizontalAccuracy >= 0,
+              abs(p.timestamp.timeIntervalSinceNow) < 300 else { return }
+        locationRequested = false
         guard pageReady else { pendingLocation = p.coordinate; return }
         sendLocation(p.coordinate)
     }
@@ -240,13 +247,19 @@ final class NativeBridge: NSObject, WKScriptMessageHandler, WKUIDelegate,
     }
 
     func locationManager(_ m: CLLocationManager, didFailWithError error: Error) {
+        guard locationRequested else { return }
+        locationRequested = false
         eval("window.dispatchEvent(new CustomEvent('mishkat-location-error'))")
     }
 
     /// عند منح الإذن نجلب الموقع مباشرة، ثم تحدّث الواجهة المواقيت والقبلة والودجت.
     func locationManagerDidChangeAuthorization(_ m: CLLocationManager) {
+        guard locationRequested else { return }
         switch m.authorizationStatus {
         case .authorizedWhenInUse, .authorizedAlways: m.requestLocation()
+        case .denied, .restricted:
+            locationRequested = false
+            eval("window.dispatchEvent(new CustomEvent('mishkat-location-error',{detail:{reason:'denied'}}))")
         default: break
         }
     }

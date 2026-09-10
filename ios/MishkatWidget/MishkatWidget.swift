@@ -69,19 +69,23 @@ struct Provider: TimelineProvider {
 // MARK: - Mishkat visual system
 
 enum MishkatWidgetTheme {
-    static let emerald = Color(red: 11 / 255, green: 93 / 255, blue: 75 / 255)
-    static let deepEmerald = Color(red: 7 / 255, green: 61 / 255, blue: 51 / 255)
-    static let ivory = Color(red: 247 / 255, green: 243 / 255, blue: 234 / 255)
-    static let gold = Color(red: 199 / 255, green: 163 / 255, blue: 58 / 255)
-    static let ink = Color(red: 21 / 255, green: 32 / 255, blue: 28 / 255)
-    static let muted = Color(red: 111 / 255, green: 119 / 255, blue: 115 / 255)
+    static let emerald = Color(red: 11 / 255, green: 61 / 255, blue: 50 / 255)
+    static let deepEmerald = Color(red: 7 / 255, green: 42 / 255, blue: 35 / 255)
+    static let ivory = Color(red: 255 / 255, green: 253 / 255, blue: 248 / 255)
+    static let gold = Color(red: 209 / 255, green: 173 / 255, blue: 88 / 255)
+    static let ink = Color(red: 23 / 255, green: 33 / 255, blue: 29 / 255)
+    static let muted = Color(red: 93 / 255, green: 104 / 255, blue: 99 / 255)
+
+    static func readingAccent(for scheme: ColorScheme) -> Color {
+        scheme == .dark ? gold : Color(red: 135 / 255, green: 96 / 255, blue: 24 / 255)
+    }
 
     static func prayerBackground(for scheme: ColorScheme) -> Color {
         scheme == .dark ? deepEmerald : emerald
     }
 
     static func readingBackground(for scheme: ColorScheme) -> Color {
-        scheme == .dark ? deepEmerald : ivory
+        scheme == .dark ? Color(red: 16 / 255, green: 34 / 255, blue: 27 / 255) : ivory
     }
 
     static func readingForeground(for scheme: ColorScheme) -> Color {

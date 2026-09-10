@@ -18,6 +18,8 @@
   let rootElement = null;
   let currentPlanId = null;
   let options = {};
+  // Session-only recovery for a progress entry; persisted plans keep their schema.
+  let progressUndo = null;
   const boundRoots = typeof WeakSet === 'function' ? new WeakSet() : null;
 
   function createDefaultStorage() {
@@ -477,9 +479,9 @@
   function renderIndex() {
     const plans = list();
     return `<section class="khatma-module" dir="rtl" aria-label="خطط الختمة">
-      <header class="khatma-module__header"><div><small>وردك القرآني</small><h2>ختماتي</h2></div><span>${latinDigits(plans.length)} خطط</span></header>
-      ${plans.length ? `<div class="khatma-list">${plans.map(renderPlanRow).join('')}</div>` : emptyMarkup('ابدأ ختمتك الأولى', 'حدّد نقطة البداية وموعد النهاية، وسنحسب وردك اليومي ونحفظ تقدمك على جهازك.')}
-      ${renderCreateForm()}
+      <header class="khatma-module__header"><div><small>صفحةً بعد صفحة</small><h2>${plans.length ? 'ختماتي' : 'ابدأ ختمتك الأولى'}</h2></div>${plans.length ? `<span>${latinDigits(plans.length)} ${plans.length === 1 ? 'ختمة' : 'ختمات'}</span>` : ''}</header>
+      ${plans.length ? `<p class="khatma-caption">اختر ختمة لمتابعة وردك أو تسجيل ما قرأت.</p><div class="khatma-list">${plans.map(renderPlanRow).join('')}</div>` : ''}
+      ${plans.length ? `<details class="disclosure khatma-new"><summary>إضافة ختمة جديدة</summary>${renderCreateForm()}</details>` : renderCreateForm()}
     </section>`;
   }
 
@@ -491,27 +493,34 @@
     return `<button type="button" class="khatma-row" data-khatma-action="open" data-plan-id="${escapeAttr(plan.id)}">
       <span class="khatma-row__status">${status}</span>
       <strong>${escapeHtml(plan.name)}</strong>
-      <small>${duration} · وصلت إلى الصفحة ${latinDigits(plan.progressPage)}</small>
-      <span class="khatma-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${value.percentage}"><i style="width:${value.percentage}%"></i></span>
+      <small>${duration} · ${value.completedPages ? `قرأت ${latinDigits(value.completedPages)} صفحة` : 'جاهزة للبدء'}</small>
+      <span class="khatma-row__next">${plan.status === 'completed' ? 'تقبّل الله منك' : plan.status === 'paused' ? 'استأنف حين يناسبك' : `متابعة من الصفحة ${latinDigits(plan.progressPage + 1)}`}<span aria-hidden="true">‹</span></span>
+      <span class="khatma-progress" role="progressbar" aria-label="تقدم الختمة" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${value.percentage}"><i style="width:${value.percentage}%"></i></span>
       <b>${latinDigits(value.percentage)}%</b>
     </button>`;
   }
 
   function renderCreateForm() {
-    return `<form class="khatma-form" data-khatma-create>
-      <div class="khatma-form__intro"><div><small>خطة مرنة</small><h3>ختمة جديدة</h3></div><p>3 اختيارات فقط للبدء، ويمكن تعديلها لاحقًا.</p></div>
+    return `<form class="khatma-form" data-khatma-create novalidate>
+      <div class="khatma-form__intro"><p>اختر مدة تناسب يومك، وسنحسب وردك. يمكنك تعديل خطتك لاحقًا.</p></div>
+      <fieldset class="khatma-pace"><legend>خلال كم يومًا؟</legend><div class="khatma-presets">${[30, 60, 90].map(days => `<button type="button" data-khatma-duration="${days}" aria-pressed="${days === 30}"><strong>${days}</strong><span>يومًا</span><small data-pace-pages="${days}">${calculateDailyTarget(days)} صفحة / يوم</small></button>`).join('')}</div></fieldset>
+      <details class="khatma-disclosure khatma-duration-options"><summary>مدة أخرى أو ورد مستمر<span data-duration-label>30 يومًا</span></summary>
+        <label>المدة<select name="duration">${durationOptions(30)}</select></label>
+        <label class="hidden" data-khatma-end>تاريخ النهاية<input name="endDate" type="date" min="${todayKey()}" value="${addDays(todayKey(), 29)}" required></label>
+        <label class="hidden" data-khatma-daily>عدد الصفحات يوميًا<input name="dailyPages" type="number" inputmode="numeric" min="1" max="604" value="1" required></label>
+      </details>
+      <div class="khatma-preview" data-khatma-preview role="status" aria-live="polite"></div>
+      <p class="khatma-form-error" data-khatma-error role="alert" tabindex="-1" hidden></p>
+      <button type="submit">ابدأ الختمة</button>
+      <details class="khatma-disclosure khatma-start-options"><summary>الاسم ونقطة البداية<span data-start-label>أول المصحف</span></summary>
       <label>اسم الختمة<input name="name" maxlength="80" required value="ختمتي" placeholder="مثل: ختمة رمضان"></label>
-      <div class="khatma-form-grid">
+      <p class="khatma-caption">ابدأ من أول المصحف، أو من موضع وصلت إليه سابقًا.</p><div class="khatma-form-grid">
         <label>نقطة البداية<select name="startKind">${startKindOptions('page')}</select></label>
         <label data-start-value>الرقم<input name="startValue" type="number" inputmode="numeric" min="1" max="604" value="1" required></label>
         <label class="hidden" data-start-surah>السورة<input name="startSurah" type="number" inputmode="numeric" min="1" max="114" value="1"></label>
-        <label>المدة<select name="duration">${durationOptions(30)}</select></label>
-        <label class="hidden" data-khatma-end>تاريخ النهاية<input name="endDate" type="date" min="${todayKey()}" value="${addDays(todayKey(), 29)}"></label>
-        <label class="hidden" data-khatma-daily>ورد المستمرة<input name="dailyPages" type="number" inputmode="numeric" min="1" max="604" value="1"></label>
-      </div>
-      <div class="khatma-preview" data-khatma-preview>نحو <b>${latinDigits(calculateDailyTarget(30))}</b> صفحة يوميًا</div>
-      <details class="khatma-reminder"><summary>إضافة تذكير</summary>${renderReminderFields()}</details>
-      <button type="submit">ابدأ الختمة</button>
+      </div></details>
+      <details class="khatma-disclosure khatma-reminder"><summary>تذكير بالورد<span data-reminder-label>بدون تذكير</span></summary>${renderReminderFields()}</details>
+      <p class="khatma-save-note">تُحفظ خطتك وتقدمك على هذا الجهاز.</p>
     </form>`;
   }
 
@@ -528,15 +537,16 @@
 
   function renderReminderFields(reminder) {
     const value = reminder || { type: 'none' };
-    return `<fieldset><legend>التذكير</legend>
+    return `<fieldset><legend>متى تحب أن تتذكر وردك؟</legend>
       <label>النوع<select name="reminderType">
         <option value="none"${value.type === 'none' ? ' selected' : ''}>بدون تذكير</option>
         <option value="prayer"${value.type === 'prayer' ? ' selected' : ''}>مرتبط بصلاة</option>
         <option value="time"${value.type === 'time' ? ' selected' : ''}>وقت ثابت</option>
       </select></label>
-      <label>الصلاة<select name="prayer">${PRAYERS.map(prayer => `<option value="${prayer}"${value.prayer === prayer ? ' selected' : ''}>${PRAYER_NAMES[prayer]}</option>`).join('')}</select></label>
-      <label>الإزاحة بالدقائق<input name="offsetMinutes" type="number" min="-180" max="180" value="${value.offsetMinutes || 0}"></label>
-      <label>الوقت<input name="time" type="time" value="${value.time || '20:00'}"></label>
+      <label data-reminder-prayer>الصلاة<select name="prayer">${PRAYERS.map(prayer => `<option value="${prayer}"${value.prayer === prayer ? ' selected' : ''}>${PRAYER_NAMES[prayer]}</option>`).join('')}</select></label>
+      <label data-reminder-prayer>قبل الصلاة أو بعدها بالدقائق<input name="offsetMinutes" type="number" inputmode="numeric" min="-180" max="180" value="${value.offsetMinutes || 0}"><small>0 عند الصلاة، −5 قبلها، 5 بعدها.</small></label>
+      <label data-reminder-time>وقت التذكير<input name="time" type="time" value="${value.time || '20:00'}" required></label>
+      <p class="khatma-caption" data-reminder-note>يتطلب وصول التذكير تفعيل إشعارات مشكاة في إعدادات الجهاز.</p>
     </fieldset>`;
   }
 
@@ -544,32 +554,35 @@
     const plan = requirePlan(planId);
     const value = metrics(plan);
     const targetEnd = value.deadline ? formatDate(value.deadline) : '—';
-    const statusLabel = plan.status === 'completed' ? 'مكتملة' : plan.status === 'paused' ? 'متوقفة مؤقتًا' : 'مستمرة';
+    const statusLabel = plan.status === 'completed' ? 'مكتملة' : plan.status === 'paused' ? 'متوقفة مؤقتًا' : 'ختمة نشطة';
     const nextPage = Math.min(TOTAL_PAGES, Math.max(plan.startPage, plan.progressPage + 1));
     const arbitraryDuration = plan.duration !== 'continuous' && !FIXED_DURATIONS.includes(plan.duration);
+    const lastPage = Math.min(TOTAL_PAGES, nextPage + Math.max(0, value.todayTarget - 1));
     return `<section class="khatma-module khatma-module--detail" dir="rtl" aria-label="${escapeAttr(plan.name)}">
-      <header class="khatma-plan-header"><button type="button" data-khatma-action="back">رجوع</button><div><small>${statusLabel} · البداية من صفحة ${latinDigits(plan.startPage)}</small><h2>${escapeHtml(plan.name)}</h2></div></header>
-      ${plan.status === 'completed' ? `<div class="khatma-state khatma-state--success" role="status"><strong>أتممت الختمة</strong><span>تقبّل الله منك وبارك في وردك.</span></div>` : ''}
-      ${value.needsRebalance && plan.status === 'active' && (!plan.rebalancedAt || dateKey(new Date(plan.rebalancedAt)) !== todayKey()) ? `<div class="khatma-state khatma-state--warning"><strong>تحتاج الخطة إلى توزيع جديد</strong><span>أنت متأخر ${latinDigits(value.behindPages)} صفحة. أصبح ورد اليوم ${latinDigits(value.todayTarget)} صفحة للحاق بموعد النهاية.</span><button type="button" data-khatma-action="rebalance">اعتماد التوزيع الجديد</button></div>` : ''}
-      <div class="khatma-summary">
-        <strong>${latinDigits(value.percentage)}%</strong>
-        <span>قرأت ${latinDigits(value.completedPages)} من ${latinDigits(value.totalPages)} صفحة</span>
-        <div class="khatma-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${value.percentage}"><i style="width:${value.percentage}%"></i></div>
+      <header class="khatma-plan-header"><button type="button" data-khatma-action="back" aria-label="العودة إلى ختماتي"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button><div><small>${statusLabel}</small><h2 tabindex="-1">${escapeHtml(plan.name)}</h2></div></header>
+      ${progressUndo && progressUndo.after === plan.updatedAt && progressUndo.before.id === plan.id ? `<div class="khatma-feedback" role="status"><span>حُفظ موضعك عند الصفحة ${latinDigits(plan.progressPage)}</span><button type="button" data-khatma-action="undo-progress">تراجع</button></div>` : ''}
+      <div class="khatma-wird">
+        <span class="khatma-eyebrow">${plan.status === 'completed' ? 'ختمة مباركة' : plan.status === 'paused' ? 'موضعك محفوظ' : 'وردك القادم'}</span>
+        <h3>${plan.status === 'completed' ? 'أتممت الختمة' : plan.status === 'paused' ? 'على مهل، عد حين يناسبك' : `${latinDigits(value.todayTarget)} <span>صفحة للقراءة</span>`}</h3>
+        <p>${plan.status === 'completed' ? 'تقبّل الله منك وبارك في وردك.' : plan.status === 'paused' ? `سنكمل من الصفحة ${latinDigits(nextPage)} عند استئناف الخطة.` : `من الصفحة <bdi>${nextPage}</bdi> إلى <bdi>${lastPage}</bdi>`}</p>
+        ${plan.status === 'paused' ? `<button type="button" class="khatma-primary" data-khatma-action="resume">استئناف الختمة</button>` : plan.status !== 'completed' ? `<button type="button" class="khatma-primary khatma-continue" data-khatma-action="continue" data-page="${nextPage}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v15M3 4c4-1 7 0 9 2 2-2 5-3 9-2v15c-4-1-7 0-9 2-2-2-5-3-9-2Z"/></svg>متابعة القراءة<span aria-hidden="true">‹</span></button>` : ''}
+        ${plan.status === 'active' ? '<small>الورد المقترح يتحدّث بحسب تقدمك في الخطة.</small>' : ''}
       </div>
-      <dl class="khatma-metrics">
-        <div><dt>ورد اليوم</dt><dd>${latinDigits(value.todayTarget)} صفحات</dd></div>
-        <div><dt>الأيام المتبقية</dt><dd>${value.daysRemaining == null ? 'مستمرة' : latinDigits(value.daysRemaining)}</dd></div>
-        <div><dt>النهاية المتوقعة</dt><dd>${targetEnd}</dd></div>
-      </dl>
-      ${plan.status !== 'completed' ? `<button type="button" class="khatma-continue" data-khatma-action="continue" data-page="${nextPage}"><span>متابعة القراءة</span><b>افتح الصفحة ${latinDigits(nextPage)}</b></button>` : ''}
-      <form data-khatma-progress><label>وصلت إلى صفحة<input name="page" type="number" inputmode="numeric" min="${plan.startPage - 1}" max="604" value="${plan.progressPage}" required></label><button type="submit">حفظ التقدم</button></form>
-      <div class="khatma-actions">
+      <details class="khatma-disclosure khatma-record"${plan.status === 'completed' ? '' : ' open'}><summary>تسجيل القراءة<span>${value.completedPages ? `آخر صفحة: ${plan.progressPage}` : 'لم تسجّل قراءة بعد'}</span></summary>
+      <p class="khatma-caption">سجّل آخر صفحة أتممت قراءتها، من هنا أو من مصحفك الورقي.</p>
+      <form data-khatma-progress novalidate><label>آخر صفحة قرأتها<input name="page" type="number" inputmode="numeric" min="${plan.startPage - 1}" max="604" value="${plan.progressPage}" required></label><button type="submit">حفظ موضعي</button><p class="khatma-form-error" data-khatma-error role="alert" tabindex="-1" hidden></p></form>
+      <div class="khatma-actions khatma-increments">
         <button type="button" data-khatma-action="advance" data-pages="1" data-plan-id="${escapeAttr(plan.id)}">قرأت صفحة</button>
         <button type="button" data-khatma-action="advance" data-pages="5" data-plan-id="${escapeAttr(plan.id)}">قرأت 5 صفحات</button>
-        ${plan.status === 'paused' ? `<button type="button" data-khatma-action="resume" data-plan-id="${escapeAttr(plan.id)}">استئناف</button>` : plan.status === 'active' ? `<button type="button" data-khatma-action="pause" data-plan-id="${escapeAttr(plan.id)}">إيقاف مؤقت</button>` : ''}
+      </div></details>
+      <div class="khatma-summary"><div><h3>رحلتك في الختمة</h3><strong>${latinDigits(value.percentage)}%</strong></div><span>قرأت ${latinDigits(value.completedPages)} من ${latinDigits(value.totalPages)} صفحة</span>
+        <div class="khatma-progress" role="progressbar" aria-label="تقدم الختمة" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${value.percentage}"><i style="width:${value.percentage}%"></i></div>
+        <dl class="khatma-metrics"><div><dt>المتبقي</dt><dd>${value.remainingPages} صفحة</dd></div><div><dt>${plan.duration === 'continuous' ? 'المدة' : 'الأيام المتبقية'}</dt><dd>${value.daysRemaining == null ? 'بلا موعد' : latinDigits(value.daysRemaining)}</dd></div><div><dt>النهاية المتوقعة</dt><dd>${targetEnd}</dd></div></dl>
       </div>
-      <details><summary>تعديل الختمة</summary>
-        <form class="khatma-form" data-khatma-edit>
+      ${value.needsRebalance && plan.status === 'active' && (!plan.rebalancedAt || dateKey(new Date(plan.rebalancedAt)) !== todayKey()) ? `<div class="khatma-state khatma-state--warning"><strong>يمكنك ضبط وتيرة الخطة</strong><span>بقي ${latinDigits(value.behindPages)} صفحة من الأيام السابقة. الورد المقترح ${latinDigits(value.todayTarget)} صفحة لموعدك الحالي، ويمكنك تمديد المدة من تعديل الختمة.</span><button type="button" data-khatma-action="rebalance">اعتماد الورد المقترح</button></div>` : ''}
+      <details class="khatma-disclosure khatma-manage"><summary>إعدادات الختمة<span>تعديل، تذكير، إيقاف</span></summary>
+      <details class="khatma-disclosure khatma-edit"><summary>تعديل الختمة والتذكير</summary>
+        <form class="khatma-form" data-khatma-edit novalidate>
           <label>الاسم<input name="name" maxlength="80" value="${escapeAttr(plan.name)}" required></label>
           <label>تاريخ البداية<input name="startDate" type="date" value="${escapeAttr(plan.startDate)}" required></label>
           <div class="khatma-form-grid">
@@ -581,10 +594,10 @@
             <label class="${plan.duration === 'continuous' ? '' : 'hidden'}" data-khatma-daily>ورد المستمرة<input name="dailyPages" type="number" min="1" max="604" value="${plan.dailyPages || 1}"></label>
           </div>
           <details class="khatma-reminder"><summary>إعداد التذكير</summary>${renderReminderFields(plan.reminder)}</details>
-          <button type="submit">حفظ التعديلات</button>
+          <p class="khatma-form-error" data-khatma-error role="alert" tabindex="-1" hidden></p><button type="submit">حفظ التعديلات</button>
         </form>
       </details>
-      <button type="button" data-khatma-action="delete" data-plan-id="${escapeAttr(plan.id)}">حذف الختمة</button>
+      <div class="khatma-actions">${plan.status === 'active' ? '<button type="button" data-khatma-action="pause">إيقاف مؤقت</button>' : ''}${plan.status === 'paused' ? `<button type="button" data-khatma-action="continue" data-page="${nextPage}">فتح موضع القراءة دون استئناف</button>` : ''}<button type="button" class="khatma-danger" data-khatma-action="delete" data-plan-id="${escapeAttr(plan.id)}">حذف الختمة</button></div></details>
     </section>`;
   }
 
@@ -594,20 +607,24 @@
     root.addEventListener('submit', event => {
       if (event.target.matches('[data-khatma-create]')) {
         event.preventDefault();
+        if (!validateForm(event.target)) return;
         try {
           create(formPlanData(event.target));
           currentPlanId = state.activeId;
           render();
+          focusHeading();
           notify('تم إنشاء الختمة وحساب وردك اليومي');
-        } catch (error) { notify(error.message); }
+        } catch (error) { showFormError(event.target, error.message); }
       }
       if (event.target.matches('[data-khatma-edit]')) {
         event.preventDefault();
-        try { update(currentPlanId, formPlanData(event.target)); notify('تم حفظ تعديلات الختمة'); } catch (error) { notify(error.message); }
+        if (!validateForm(event.target)) return;
+        try { update(currentPlanId, formPlanData(event.target)); progressUndo = null; focusHeading(); notify('تم حفظ تعديلات الختمة'); } catch (error) { showFormError(event.target, error.message); }
       }
       if (event.target.matches('[data-khatma-progress]')) {
         event.preventDefault();
-        try { setProgress(currentPlanId, Number(new FormData(event.target).get('page'))); notify('تم حفظ تقدمك'); } catch (error) { notify(error.message); }
+        if (!validateForm(event.target)) return;
+        try { recordProgress(currentPlanId, Number(new FormData(event.target).get('page'))); root.querySelector('[data-khatma-progress] button').focus({ preventScroll: true }); } catch (error) { showFormError(event.target, error.message); }
       }
     });
     root.addEventListener('input', event => {
@@ -619,16 +636,36 @@
       if (form) syncFormState(form);
     });
     root.addEventListener('click', event => {
+      const preset = event.target.closest('[data-khatma-duration]');
+      if (preset) {
+        const form = preset.closest('form');
+        form.elements.duration.value = preset.dataset.khatmaDuration;
+        syncFormState(form);
+        return;
+      }
       const button = event.target.closest('[data-khatma-action]');
       if (!button) return;
       const action = button.dataset.khatmaAction;
       const planId = button.dataset.planId || currentPlanId;
       try {
-        if (action === 'open') open(planId);
-        if (action === 'back') close();
-        if (action === 'advance') advance(planId, Number(button.dataset.pages));
-        if (action === 'pause') pause(planId);
-        if (action === 'resume') resume(planId);
+        if (action === 'open') { open(planId); focusHeading(); }
+        if (action === 'back') { close(); focusHeading(); }
+        if (action === 'advance') {
+          recordProgress(planId, Math.min(TOTAL_PAGES, requirePlan(planId).progressPage + Number(button.dataset.pages)));
+          root.querySelector(`[data-khatma-action="advance"][data-pages="${button.dataset.pages}"]`).focus({ preventScroll: true });
+        }
+        if (action === 'undo-progress') {
+          if (progressUndo && progressUndo.before.id === planId && requirePlan(planId).updatedAt === progressUndo.after) {
+            const restored = Object.assign(clone(progressUndo.before), { updatedAt: new Date().toISOString() });
+            state.plans[state.plans.findIndex(plan => plan.id === planId)] = restored;
+            progressUndo = null;
+            persistAndEmit('progress', restored); render();
+            root.querySelector('[data-khatma-progress] button').focus({ preventScroll: true });
+            notify('تم التراجع عن تسجيل القراءة الأخير');
+          }
+        }
+        if (action === 'pause') { pause(planId); focusHeading(); notify('توقفت الخطة مؤقتًا، وموضعك محفوظ'); }
+        if (action === 'resume') { resume(planId); focusHeading(); notify('تم استئناف الختمة'); }
         if (action === 'continue') {
           const page = Number(button.dataset.page);
           if (typeof options.onContinue === 'function') options.onContinue(page, getPlan(planId));
@@ -643,10 +680,51 @@
         }
         if (action === 'delete') {
           const approved = typeof window === 'undefined' || typeof window.confirm !== 'function' || window.confirm('حذف هذه الختمة؟ لا يمكن التراجع.');
-          if (approved) remove(planId);
+          if (approved) { remove(planId); progressUndo = null; focusHeading(); notify('حُذفت الختمة'); }
         }
       } catch (error) { notify(error.message); }
     });
+  }
+
+  function focusHeading() {
+    if (!rootElement) return;
+    const heading = rootElement.querySelector('h2');
+    const scroller = rootElement.closest('main');
+    if (scroller) scroller.scrollTo({ top: 0, behavior: 'instant' });
+    if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
+  }
+
+  function recordProgress(planId, page) {
+    const before = getPlan(planId);
+    if (before.progressPage === page) { notify('موضع القراءة محفوظ بالفعل'); return; }
+    setProgress(planId, page);
+    const after = getPlan(planId);
+    progressUndo = { before, after: after.updatedAt };
+    render();
+    notify(`حُفظ موضعك عند الصفحة ${latinDigits(after.progressPage)}`);
+  }
+
+  function showFormError(form, message, field) {
+    const error = form.querySelector('[data-khatma-error]');
+    if (!error) { notify(message); return; }
+    error.id = form.hasAttribute('data-khatma-create') ? 'khatma-create-error' : form.hasAttribute('data-khatma-edit') ? 'khatma-edit-error' : 'khatma-progress-error';
+    error.hidden = false; error.textContent = message;
+    if (field) {
+      field.setAttribute('aria-invalid', 'true'); field.setAttribute('aria-describedby', error.id);
+      for (let node = field.parentElement; node && node !== form; node = node.parentElement) if (node.tagName === 'DETAILS') node.open = true;
+      field.focus();
+    } else error.focus();
+  }
+
+  function validateForm(form) {
+    if (form.elements.name) form.elements.name.setCustomValidity(form.elements.name.value.trim() ? '' : 'اكتب اسمًا للختمة');
+    const invalid = Array.from(form.elements).find(field => !field.disabled && field.willValidate && !field.checkValidity());
+    if (!invalid) return true;
+    const message = invalid.name === 'name' ? 'اكتب اسمًا للختمة.'
+      : invalid.type === 'number' ? `أدخل عددًا صحيحًا من ${invalid.min || 1} إلى ${invalid.max || 604}.`
+      : invalid.type === 'date' ? 'اختر تاريخًا صحيحًا لا يسبق تاريخ البداية.'
+      : 'أكمل هذا الحقل قبل حفظ الختمة.';
+    showFormError(form, message, invalid); return false;
   }
 
   function formPlanData(form) {
@@ -684,6 +762,12 @@
   }
 
   function syncFormState(form) {
+    if (form.elements.name) form.elements.name.setCustomValidity(form.elements.name.value.trim() ? '' : 'اكتب اسمًا للختمة');
+    form.querySelectorAll('[aria-invalid]').forEach(field => {
+      if (field.checkValidity()) { field.removeAttribute('aria-invalid'); field.removeAttribute('aria-describedby'); }
+    });
+    const error = form.querySelector('[data-khatma-error]');
+    if (error && !form.querySelector('[aria-invalid]')) error.hidden = true;
     const kind = form.elements.startKind && form.elements.startKind.value || 'page';
     const limits = { page: 604, surah: 114, juz: 30, hizb: 60, ayah: 286 };
     const labels = { page: 'رقم الصفحة', surah: 'رقم السورة', juz: 'رقم الجزء', hizb: 'رقم الحزب', ayah: 'رقم الآية' };
@@ -694,12 +778,23 @@
       if (label) label.childNodes[0].nodeValue = labels[kind];
     }
     const surahField = form.querySelector('[data-start-surah]');
-    if (surahField) surahField.classList.toggle('hidden', kind !== 'ayah');
+    if (surahField) { surahField.classList.toggle('hidden', kind !== 'ayah'); surahField.querySelector('input').disabled = kind !== 'ayah'; }
     const duration = form.elements.duration && form.elements.duration.value || '30';
     const end = form.querySelector('[data-khatma-end]');
     const daily = form.querySelector('[data-khatma-daily]');
-    if (end) end.classList.toggle('hidden', duration !== 'custom');
-    if (daily) daily.classList.toggle('hidden', duration !== 'continuous');
+    if (end) { end.classList.toggle('hidden', duration !== 'custom'); end.querySelector('input').disabled = duration !== 'custom'; }
+    if (daily) { daily.classList.toggle('hidden', duration !== 'continuous'); daily.querySelector('input').disabled = duration !== 'continuous'; }
+    form.querySelectorAll('[data-khatma-duration]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.khatmaDuration === duration)));
+    const durationLabel = form.querySelector('[data-duration-label]');
+    if (durationLabel) durationLabel.textContent = duration === 'continuous' ? 'مستمر' : duration === 'custom' ? 'تاريخ محدد' : `${duration} يومًا`;
+    const reminder = form.elements.reminderType && form.elements.reminderType.value || 'none';
+    form.querySelectorAll('[data-reminder-prayer],[data-reminder-time]').forEach(field => {
+      const shown = field.hasAttribute('data-reminder-prayer') ? reminder === 'prayer' : reminder === 'time';
+      field.classList.toggle('hidden', !shown); field.querySelector('input,select').disabled = !shown;
+    });
+    const reminderLabel = form.querySelector('[data-reminder-label]');
+    if (reminderLabel) reminderLabel.textContent = reminder === 'prayer' ? `مع ${PRAYER_NAMES[form.elements.prayer.value]}` : reminder === 'time' ? form.elements.time.value : 'بدون تذكير';
+    const note = form.querySelector('[data-reminder-note]'); if (note) note.hidden = reminder === 'none';
     const preview = form.querySelector('[data-khatma-preview]');
     if (!preview) return;
     try {
@@ -707,12 +802,14 @@
         ? options.resolvePoint(kind, Number(valueInput.value || 1), Number(form.elements.startSurah && form.elements.startSurah.value || 1))
         : { page: Number(valueInput.value || 1) };
       const remaining = TOTAL_PAGES - point.page + 1;
-      if (duration === 'continuous') preview.innerHTML = `ورد ثابت: <b>${latinDigits(form.elements.dailyPages.value || 1)}</b> صفحة يوميًا`;
+      const startLabel = form.querySelector('[data-start-label]'); if (startLabel) startLabel.textContent = point.page === 1 ? 'أول المصحف' : `الصفحة ${point.page}`;
+      form.querySelectorAll('[data-pace-pages]').forEach(label => { label.textContent = `${Math.ceil(remaining / Number(label.dataset.pacePages))} صفحة / يوم`; });
+      if (duration === 'continuous') preview.innerHTML = `<span>وردك اليومي</span><b>${latinDigits(form.elements.dailyPages.value || 1)} صفحة</b><small>من الصفحة ${point.page} · بلا موعد نهاية ملزم</small>`;
       else {
         const days = duration === 'custom'
           ? daysBetween(form.elements.startDate && form.elements.startDate.value || todayKey(), form.elements.endDate.value) + 1
           : Number(duration);
-        preview.innerHTML = days > 0 ? `نحو <b>${latinDigits(Math.ceil(remaining / days))}</b> صفحة يوميًا` : 'اختر تاريخ نهاية صحيحًا';
+        preview.innerHTML = days > 0 ? `<span>وردك اليومي المقترح</span><b>${latinDigits(Math.ceil(remaining / days))} صفحة</b><small>من الصفحة ${point.page} · النهاية ${formatDate(addDays(form.elements.startDate && form.elements.startDate.value || todayKey(), days - 1))}</small>` : 'اختر تاريخ نهاية صحيحًا';
       }
     } catch (_) { preview.textContent = 'أكمل البيانات لحساب الورد'; }
   }
