@@ -28,7 +28,22 @@ Date: 2026-09-10
 - Production APNs, matching Firebase bundle configuration, disabled debugging entitlement and non-exempt encryption declaration were verified in the exported IPA.
 - All 604 SVG pages in the final archive matched source SHA-256 hashes; current Quran/khatma JavaScript, HTML, CSS and service-worker bytes also matched.
 - Runtime allowlist verified on the final archive: no test artifacts, source-control directory, environment files, or signing keys in `www`.
-- Apple validation and conditional TestFlight upload are in progress. Server processing readback is pending.
+- Apple validation passed with no errors on 2026-09-10. Upload then succeeded with no errors at 04:25:49 Asia/Aden; delivery UUID `2937797d-d180-4dd0-b710-32ac75df58b8`.
+- At 04:31 Asia/Aden the new build was not yet returned by the App Store Connect builds API (checked both filtered and latest-build listings). Upload success is confirmed; processing state, TestFlight readiness and tester access for this build are not yet confirmed. Do not re-upload blindly; check for build 6 / version 1.2 first.
+- Exported IPA: 106,451,594 bytes; SHA-256 `39d2e03f817472eccdff487b2d4610064c0f7b0342ef4d1d2967ab39519b612f`. Archives and signing material remain local and excluded from Git.
+- Release source revision on GitHub: `c700f95` (includes application improvements from `33230d6`). Later report-only commits do not change the binary.
+
+## Arabic TestFlight notes
+
+Prepared below; not yet attached because the new build resource is not available in the API. The existing beta locale is `ar-SA`.
+
+تحديث تجربة المصحف والختمة في مشكاة:
+- واجهة قراءة أهدأ، وأدوات أوضح للفهرس والبحث والعلامات والتلاوة.
+- تكبير وتصغير سلس مع الحفاظ على موضع القراءة وتحسين اللمس داخل قارئ المصحف.
+- تحسين إنشاء خطط الختمة ومتابعة الورد، وتناسق الواجهات الفاتحة والداكنة.
+- تحسينات للموقع والأذونات وتباين الودجت مع الحفاظ على المحتوى والبيانات الحالية.
+
+يرجى تجربة الانتقال بين الصفحات، التكبير والعودة للحجم الطبيعي، البحث بالعربية والأرقام، حفظ العلامات، التلاوة، إنشاء خطة ختمة ومتابعة الورد، وإضافة الودجت على iPhone. جرّبوا تحديث النسخة السابقة دون حذف التطبيق للتأكد من بقاء البيانات.
 
 ## Known verification limits
 
