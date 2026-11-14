@@ -1,36 +1,62 @@
-# macOS
-.DS_Store
-
-# Editors and local agent settings
-.claude/
-.vscode/
-
-# Xcode user data and generated builds
-DerivedData/
-xcuserdata/
-*.xcuserstate
-ios/build/
-ios/build-*/
-ios/archive/
-*.xcarchive/
-*.ipa
-*.dSYM/
-
-# Swift Package Manager local state
-.build/
-.swiftpm/
-
-# JavaScript dependencies and logs
-node_modules/
+# Miscellaneous
+*.class
 *.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+tools/tafsir/raw/
 
-# Signing credentials and local environment files
-*.p8
-*.p12
-*.cer
-*.mobileprovision
-*.key
-*.pem
-.env
-.env.*
-!.env.example
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Widget Preview related
+.widget_preview/
+
+# Private Android upload signing material (never commit)
+**/*.jks
+**/*.keystore
+/android/key.properties
+**/signing-private/
+*.aab
+
+# The offline model is assembled from tracked parts into generated Android assets.
+/android/app/src/main/assets/asr/model.int8.onnx
+
+# Checksum-verified iOS speech libraries are prepared before pod install.
+/ios/OfflineASR/Vendor/

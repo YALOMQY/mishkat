@@ -1,0 +1,450 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:home_widget/home_widget.dart';
+
+import '../../features/adhkar/data/models/adhkar_models.dart';
+import '../../features/adhkar/data/repositories/adhkar_repository.dart';
+import '../../features/prayer_times/data/services/prayer_calculator.dart';
+import '../../features/prayer_times/domain/models/prayer_models.dart';
+import '../../features/settings/data/models/app_settings.dart';
+import '../../features/khatma/data/models/khatma_plan.dart';
+import '../../features/tasbih/presentation/cubit/tasbih_state.dart';
+import '../../src/home_widget/adhkar_widget.home_widget.dart';
+import '../../src/home_widget/prayer_times_widget.home_widget.dart';
+import '../../src/home_widget/qibla_widget.home_widget.dart';
+import '../../src/home_widget/wird_widget.home_widget.dart';
+import '../../src/home_widget/tasbih_widget.home_widget.dart';
+import '../utils/app_formatters.dart';
+import 'home_widget_content.dart';
+
+enum MishkatHomeWidget { prayerTimes, qibla, adhkar, wird, tasbih }
+
+/// The latest deep link delivered by a Home Screen widget.
+///
+/// It intentionally mirrors the notification tap notifier so the shell can
+/// route cold starts and warm launches through one predictable mechanism.
+final ValueNotifier<Uri?> homeWidgetLaunchUri = ValueNotifier<Uri?>(null);
+
+class HomeWidgetService {
+  HomeWidgetService({
+    required AdhkarRepository adhkarRepository,
+    PrayerCalculator calculator = const PrayerCalculator(),
+    DateTime Function()? now,
+  }) : this._internal(adhkarRepository, calculator, now ?? DateTime.now);
+
+  HomeWidgetService._internal(
+    this._adhkarRepository,
+    this._calculator,
+    this._now,
+  );
+
+  static const appGroupId = 'group.com.dakomn.mishkatapp.widgets';
+
+  final AdhkarRepository _adhkarRepository;
+  final PrayerCalculator _calculator;
+  final DateTime Function() _now;
+  StreamSubscription<Uri?>? _clickSubscription;
+  Timer? _tasbihDebounce;
+  Future<void> _tasbihWrites = Future.value();
+  Future<void> _settingsWrites = Future.value();
+  Future<void> _wirdWrites = Future.value();
+
+  bool get isSupportedPlatform =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
+
+  bool get canRequestPin =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
+  Future<void> initialize(AppSettings settings) async {
+    if (!isSupportedPlatform) return;
+    try {
+      await HomeWidget.setAppGroupId(appGroupId);
+      homeWidgetLaunchUri.value =
+          await HomeWidget.initiallyLaunchedFromHomeWidget();
+      _clickSubscription ??= HomeWidget.widgetClicked.listen((uri) {
+        if (uri != null) homeWidgetLaunchUri.value = uri;
+      });
+    } on Object catch (error, stackTrace) {
+      _reportOptionalFailure('while initializing', error, stackTrace);
+    }
+    await sync(settings);
+  }
+
+  /// Saves a week of prayer times and two days of adhkar locally.
+  /// Timed entries let prayer and adhkar content advance while Flutter is not
+  /// running; no network request or continuous background task is required.
+  Future<void> sync(AppSettings settings) {
+    if (!isSupportedPlatform) return Future.value();
+    // Serialize changes so rapid theme/location edits cannot restore old data.
+    _settingsWrites = _settingsWrites.then((_) async {
+      await _guarded('while syncing widget appearance', () async {
+        await HomeWidget.saveWidgetData<String>(
+          'widgetTheme',
+          settings.widgetTheme.name,
+          appGroupId: appGroupId,
+        );
+      });
+      await Future.wait([
+        _guarded('while syncing prayer widget', () => _syncPrayer(settings)),
+        _guarded('while syncing qibla widget', () => _syncQibla(settings)),
+        _guarded('while syncing adhkar widget', _syncAdhkar),
+        _guarded('while refreshing wird appearance', () async {
+          await WirdWidgetHomeWidget.updateWidget();
+        }),
+        _guarded('while refreshing tasbih appearance', () async {
+          await TasbihWidgetHomeWidget.updateWidget();
+        }),
+      ]);
+    });
+    return _settingsWrites;
+  }
+
+  Future<bool> isInstalled(MishkatHomeWidget widget) async {
+    if (!isSupportedPlatform) return false;
+    try {
+      // The gallery's Home Screen card must not report a Lock Screen-only
+      // installation as its medium Home Screen widget.
+      if (widget == MishkatHomeWidget.prayerTimes &&
+          defaultTargetPlatform == TargetPlatform.iOS) {
+        final installed =
+            await PrayerTimesWidgetHomeWidget.getInstalledWidgets();
+        return installed.any((info) => info.iOSFamily == 'systemMedium');
+      }
+      final result = switch (widget) {
+        MishkatHomeWidget.prayerTimes =>
+          PrayerTimesWidgetHomeWidget.isInstalled(),
+        MishkatHomeWidget.qibla => QiblaWidgetHomeWidget.isInstalled(),
+        MishkatHomeWidget.adhkar => AdhkarWidgetHomeWidget.isInstalled(),
+        MishkatHomeWidget.wird => WirdWidgetHomeWidget.isInstalled(),
+        MishkatHomeWidget.tasbih => TasbihWidgetHomeWidget.isInstalled(),
+      };
+      return await result;
+    } on Object {
+      return false;
+    }
+  }
+
+  Future<bool> isPinRequestSupported() async {
+    if (!canRequestPin) return false;
+    try {
+      return await HomeWidget.isRequestPinWidgetSupported() ?? false;
+    } on Object {
+      return false;
+    }
+  }
+
+  Future<void> requestPin(MishkatHomeWidget widget) async {
+    if (!canRequestPin) return;
+    switch (widget) {
+      case MishkatHomeWidget.prayerTimes:
+        await PrayerTimesWidgetHomeWidget.requestPinWidget();
+      case MishkatHomeWidget.qibla:
+        await QiblaWidgetHomeWidget.requestPinWidget();
+      case MishkatHomeWidget.adhkar:
+        await AdhkarWidgetHomeWidget.requestPinWidget();
+      case MishkatHomeWidget.wird:
+        await WirdWidgetHomeWidget.requestPinWidget();
+      case MishkatHomeWidget.tasbih:
+        await TasbihWidgetHomeWidget.requestPinWidget();
+    }
+  }
+
+  Future<void> syncWird(KhatmaPlan? plan) {
+    if (!isSupportedPlatform) return Future.value();
+    _wirdWrites = _wirdWrites.then(
+      (_) => _guarded('while syncing daily wird', () async {
+        final content = WirdWidgetContent(plan);
+        await WirdWidgetHomeWidget.saveData(
+          wirdName: content.name,
+          wirdPages: content.pages,
+          wirdDetail: content.detail,
+          wirdProgress: content.progressLabel,
+          wirdProgressValue: content.progress,
+          wirdCompletedPages: content.completedLabel,
+          wirdRemainingPages: content.remainingLabel,
+          wirdAction: content.action,
+        );
+        await WirdWidgetHomeWidget.updateWidget();
+      }),
+    );
+    return _wirdWrites;
+  }
+
+  /// Coalesce fast taps; the application remains the source of the counter.
+  void scheduleTasbihSync(TasbihState state) {
+    if (!isSupportedPlatform) return;
+    _tasbihDebounce?.cancel();
+    _tasbihDebounce = Timer(const Duration(milliseconds: 250), () {
+      unawaited(syncTasbih(state));
+    });
+  }
+
+  Future<void> syncTasbih(TasbihState state) {
+    _tasbihDebounce?.cancel();
+    if (!isSupportedPlatform) return Future.value();
+    _tasbihWrites = _tasbihWrites.then(
+      (_) => _guarded('while syncing tasbih widget', () async {
+        final now = _now();
+        final content = TasbihWidgetContent(state, now: now);
+        await TasbihWidgetHomeWidget.saveData(
+          tasbihDhikr: content.dhikr,
+          tasbihCount: content.count,
+          tasbihTarget: content.target,
+          tasbihProgressValue: content.progress,
+          tasbihAction: content.action,
+          timedData: {
+            now.subtract(const Duration(seconds: 1)): TasbihWidgetTimedData(
+              tasbihToday: content.today,
+            ),
+            DateTime(now.year, now.month, now.day + 1): TasbihWidgetTimedData(
+              tasbihToday: 'اليوم ٠ تسبيحة',
+            ),
+          },
+        );
+        await TasbihWidgetHomeWidget.updateWidget();
+      }),
+    );
+    return _tasbihWrites;
+  }
+
+  Future<void> _syncPrayer(AppSettings settings) async {
+    if (!settings.hasLocation) {
+      await PrayerTimesWidgetHomeWidget.saveData(
+        prayerCity: 'حدّد موقعك في مشكاة',
+        timedData: const {},
+      );
+      await PrayerTimesWidgetHomeWidget.updateWidget();
+      return;
+    }
+
+    final now = _now();
+    final end = now.add(const Duration(days: 7));
+    final points = <DateTime>{now};
+
+    // Native timers count down to the absolute timestamp without waking Flutter.
+    // Only prayer boundaries need a new title/target in the widget timeline.
+    for (var day = 0; day <= 7; day++) {
+      final date = DateTime(now.year, now.month, now.day + day, 12);
+      final schedule = _schedule(settings, date);
+      points.addAll(
+        schedule.moments
+            .map((moment) => moment.at)
+            .where((time) => time.isAfter(now) && !time.isAfter(end)),
+      );
+    }
+
+    final ordered = points.where((time) => !time.isAfter(end)).toList()..sort();
+    final timedData = <DateTime, PrayerTimesWidgetTimedData>{
+      for (final point in ordered) point: _prayerDataAt(settings, point),
+      // Never keep presenting a cached prayer as current after the horizon.
+      end: const PrayerTimesWidgetTimedData(
+        prayerNextAt: 0,
+        prayerRemaining: 'افتح مشكاة لتحديث المواقيت',
+        prayerNextName: '—',
+        prayerNextTime: '—',
+        prayerUpcoming: 'افتح مشكاة لتحديث مواقيت الأسبوع',
+      ),
+    };
+    await PrayerTimesWidgetHomeWidget.saveData(
+      prayerCity: settings.city.isEmpty ? 'موقعك الحالي' : settings.city,
+      timedData: timedData,
+    );
+    await PrayerTimesWidgetHomeWidget.updateWidget();
+  }
+
+  PrayerTimesWidgetTimedData _prayerDataAt(AppSettings settings, DateTime at) {
+    final schedule = _schedule(settings, at);
+    final remaining = schedule.next.at.difference(at);
+    return PrayerTimesWidgetTimedData(
+      prayerRemaining: AppFormatters.duration(remaining),
+      prayerNextAt: schedule.next.at.millisecondsSinceEpoch,
+      prayerNextName: schedule.next.name,
+      prayerNextTime: _arabicDigits(AppFormatters.time(schedule.next.at)),
+      prayerUpcoming: _upcomingLabel(settings, schedule, at),
+    );
+  }
+
+  String _upcomingLabel(
+    AppSettings settings,
+    PrayerSchedule schedule,
+    DateTime at,
+  ) {
+    final upcoming = <PrayerMoment>[
+      ...schedule.moments.where((moment) => moment.at.isAfter(at)),
+    ];
+    for (var day = 1; upcoming.length < 3 && day <= 2; day++) {
+      final nextDay = DateTime(at.year, at.month, at.day + day);
+      upcoming.addAll(_schedule(settings, nextDay).moments);
+    }
+    return upcoming
+        .take(3)
+        .map(
+          (moment) =>
+              '${moment.name} ${_arabicDigits(AppFormatters.time(moment.at))}',
+        )
+        .join('  •  ');
+  }
+
+  PrayerSchedule _schedule(AppSettings settings, DateTime now) =>
+      _calculator.schedule(
+        now: now,
+        latitude: settings.latitude!,
+        longitude: settings.longitude!,
+        methodKey: settings.method,
+        methodAuto: !settings.methodSet,
+        asr: settings.asr,
+        highLatitudes: settings.highLatitudes,
+        tune: settings.tune,
+      );
+
+  Future<void> _syncQibla(AppSettings settings) async {
+    if (!settings.hasLocation) {
+      await QiblaWidgetHomeWidget.saveData(
+        qiblaArrow: '↑',
+        qiblaBearing: 'الشمال',
+        qiblaDistance: 'حدّد موقعك لاتجاه القبلة',
+        qiblaBearingDegrees: -1,
+      );
+      await QiblaWidgetHomeWidget.updateWidget();
+      return;
+    }
+    final result = _calculator.qibla(settings.latitude!, settings.longitude!);
+    await QiblaWidgetHomeWidget.saveData(
+      qiblaArrow: _bearingArrow(result.bearing),
+      qiblaBearingDegrees: result.bearing,
+      qiblaBearing:
+          '${_arabicDigits(result.bearing.round().toString())}° ${_bearingName(result.bearing)}',
+      qiblaDistance:
+          '${_arabicDigits(result.distanceKm.round().toString())} كم إلى الكعبة',
+    );
+    await QiblaWidgetHomeWidget.updateWidget();
+  }
+
+  Future<void> _syncAdhkar() async {
+    final categories = await _adhkarRepository.load();
+    final now = _now();
+    final end = now.add(const Duration(hours: 48));
+    final points = <DateTime>{now.subtract(const Duration(seconds: 1))};
+    for (var day = 0; day <= 2; day++) {
+      for (final hour in const [5, 12, 16, 22]) {
+        final point = DateTime(now.year, now.month, now.day + day, hour);
+        if (point.isAfter(now) && !point.isAfter(end)) points.add(point);
+      }
+    }
+    final ordered = points.toList()..sort();
+    await AdhkarWidgetHomeWidget.saveData(
+      timedData: {
+        for (final point in ordered)
+          point: _dhikrDataAt(
+            categories,
+            point.add(const Duration(seconds: 1)),
+          ),
+      },
+    );
+    await AdhkarWidgetHomeWidget.updateWidget();
+  }
+
+  AdhkarWidgetTimedData _dhikrDataAt(
+    List<AdhkarCategory> categories,
+    DateTime at,
+  ) {
+    final categoryId = switch (at.hour) {
+      >= 5 && < 12 => 1,
+      >= 12 && < 16 => 130,
+      >= 16 && < 22 => 133,
+      _ => 2,
+    };
+    final category = categories.firstWhere(
+      (item) => item.id == categoryId,
+      orElse: () => categories.first,
+    );
+    final compactItems = category.items
+        .where((item) => item.text.length >= 35 && item.text.length <= 190)
+        .toList();
+    final choices = compactItems.isEmpty ? category.items : compactItems;
+    final day = at.difference(DateTime(at.year)).inDays;
+    final slot = switch (categoryId) {
+      1 => 0,
+      130 => 1,
+      133 => 2,
+      _ => 3,
+    };
+    final item = choices[(day * 4 + slot) % choices.length];
+    return AdhkarWidgetTimedData(
+      dhikrCategory: category.name,
+      dhikrCount: _countLabel(item.count),
+      dhikrText: _cleanDhikr(item.text),
+    );
+  }
+
+  Future<void> _guarded(
+    String context,
+    Future<void> Function() operation,
+  ) async {
+    try {
+      await operation();
+    } on Object catch (error, stackTrace) {
+      _reportOptionalFailure(context, error, stackTrace);
+    }
+  }
+
+  void _reportOptionalFailure(
+    String context,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'Mishkat Home Widgets',
+        context: ErrorDescription(context),
+        silent: true,
+      ),
+    );
+  }
+
+  static String _countLabel(int count) {
+    if (count <= 1) return 'مرة واحدة';
+    if (count == 2) return 'مرتان';
+    return '${_arabicDigits('$count')} مرات';
+  }
+
+  static String _cleanDhikr(String value) => value
+      .replaceAll('((', '')
+      .replaceAll('))', '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  static String _bearingArrow(double bearing) {
+    const arrows = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];
+    return arrows[((bearing + 22.5) ~/ 45) % 8];
+  }
+
+  static String _bearingName(double bearing) {
+    const names = [
+      'شمال',
+      'شمال شرقي',
+      'شرق',
+      'جنوب شرقي',
+      'جنوب',
+      'جنوب غربي',
+      'غرب',
+      'شمال غربي',
+    ];
+    return names[((bearing + 22.5) ~/ 45) % 8];
+  }
+
+  static String _arabicDigits(String value) {
+    const western = '0123456789';
+    const eastern = '٠١٢٣٤٥٦٧٨٩';
+    var output = value;
+    for (var index = 0; index < western.length; index++) {
+      output = output.replaceAll(western[index], eastern[index]);
+    }
+    return output;
+  }
+}

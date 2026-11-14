@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shared Home/Lock Screen provider; lock-screen availability is controlled by the host.
+     Keep the existing home-screen size. See docs/HOME_WIDGETS.md before regeneration. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:initialKeyguardLayout="@layout/glance_default_loading_layout"
+    android:minWidth="250dp"
+    android:minHeight="130dp"
+    android:updatePeriodMillis="1800000"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen|keyguard"
+    android:minResizeWidth="220dp"
+    android:minResizeHeight="130dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:description="@string/home_widget_prayer_times_widget_description"
+/>
